@@ -169,6 +169,13 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="@string/btn_subs_start"/>
+
+                    <Button
+                        android:id="@+id/btn_subs_advanced"
+                        style="@style/Widget.Material3.Button.TextButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/btn_subs_advanced"/>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 

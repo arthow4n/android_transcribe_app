@@ -58,6 +58,20 @@ Prefer voice input as its own keyboard? Enable the **Offline Voice Input** keybo
 
 Tap **Start Live Subtitles** and choose *Share entire screen* to get real-time, on-device captions for any audio or video playing on your device.
 
+**Advanced: skip the screen-capture dialog.** Android shows a "Start recording or casting?" consent dialog every time subtitles start. You can pre-approve it once via adb — after that, subtitles start instantly and the setting survives reboots (USB debugging can be turned off again afterwards):
+
+```bash
+adb shell appops set --user 0 dev.notune.transcribe PROJECT_MEDIA allow
+```
+
+To undo it:
+
+```bash
+adb shell appops set --user 0 dev.notune.transcribe PROJECT_MEDIA default
+```
+
+This relies on the undocumented `PROJECT_MEDIA` app-op; on some OEM builds it may not work or may get reset by the system — the normal dialog remains the fallback. The same instructions are shown in-app under *Skip the permission dialog (advanced)*.
+
 ## Prerequisites
 
 | Dependency | Installation |

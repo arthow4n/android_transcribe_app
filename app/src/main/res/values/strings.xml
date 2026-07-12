@@ -11,6 +11,11 @@
     <string name="section_subs">Live Subtitles</string>
     <string name="desc_subs">Display subtitles for any audio playing on your device. After starting, select \'Share entire screen\' for best results.</string>
     <string name="btn_subs_start">Start Live Subtitles</string>
+    <string name="btn_subs_advanced">Skip the permission dialog (advanced)</string>
+    <string name="subs_advanced_title">Skip the screen-capture dialog</string>
+    <string name="subs_advanced_body">Android normally shows a “Start recording or casting?” dialog every time subtitles start. Advanced users can pre-approve it once via adb, so subtitles start instantly from then on:\n\n1. Enable Developer options and USB debugging, connect your device to a computer with adb installed.\n\n2. Run:\n\n%1$s\n\nThat\'s it — the setting survives reboots, and you can turn USB debugging back off afterwards. The app itself doesn\'t change: Android just auto-grants the dialog.\n\nTo undo it:\n\n%2$s\n\nNote: this relies on undocumented Android behavior (the PROJECT_MEDIA app-op). On some devices (e.g. certain Xiaomi/Samsung builds) it may not work or may get reset by the system — the normal dialog is always the fallback.</string>
+    <string name="subs_advanced_copy">Copy command</string>
+    <string name="subs_advanced_copied">Command copied</string>
     
     <string name="status_label">Status:</string>
     <string name="status_checking">Checking assets...</string>

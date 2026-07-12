@@ -78,6 +78,8 @@ public class MainActivity extends AppCompatActivity {
             startActivity(intent);
         });
 
+        findViewById(R.id.btn_subs_advanced).setOnClickListener(v -> showSubsAdvancedDialog());
+
         // Settings stored as marker files in filesDir (readable from the :ime
         // process and native code without a content provider).
         bindMarkerSwitch(R.id.switch_auto_record, "auto_record", false);
@@ -229,6 +231,31 @@ public class MainActivity extends AppCompatActivity {
         }
         // onResume() also refreshes, but do it here too for an immediate update.
         updateVoiceInputStatus();
+    }
+
+    /**
+     * Explains the adb escape hatch for the MediaProjection consent dialog:
+     * once the PROJECT_MEDIA app-op is set to allow, the system permission
+     * activity returns RESULT_OK immediately, so subtitles start without the
+     * "Start recording or casting?" sheet. No app code depends on this — the
+     * normal dialog flow is the untouched fallback.
+     */
+    private void showSubsAdvancedDialog() {
+        String allowCmd = "adb shell appops set --user 0 " + getPackageName()
+                + " PROJECT_MEDIA allow";
+        String resetCmd = "adb shell appops set --user 0 " + getPackageName()
+                + " PROJECT_MEDIA default";
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.subs_advanced_title)
+                .setMessage(getString(R.string.subs_advanced_body, allowCmd, resetCmd))
+                .setPositiveButton(android.R.string.ok, null)
+                .setNeutralButton(R.string.subs_advanced_copy, (d, w) -> {
+                    android.content.ClipboardManager cm =
+                            (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                    cm.setPrimaryClip(android.content.ClipData.newPlainText("adb", allowCmd));
+                    snackbar(getString(R.string.subs_advanced_copied));
+                })
+                .show();
     }
 
     private void showHelpDialog() {
