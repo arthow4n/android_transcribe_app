@@ -36,4 +36,27 @@ public final class SubtitlePrefs {
             Files.write(f.toPath(), String.valueOf(lines).getBytes(StandardCharsets.UTF_8));
         } catch (IOException ignored) { }
     }
+
+    private static final String OVERLAY_Y_FILE = "subtitle_overlay_y";
+    /** Default: a small margin above the bottom edge. */
+    public static final int DEFAULT_OVERLAY_Y = 100;
+
+    /** Offset of the overlay above the screen bottom, set by dragging it. */
+    public static int getOverlayY(Context ctx) {
+        File f = new File(ctx.getFilesDir(), OVERLAY_Y_FILE);
+        if (!f.exists()) return DEFAULT_OVERLAY_Y;
+        try {
+            String s = new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8).trim();
+            return Integer.parseInt(s);
+        } catch (IOException | NumberFormatException e) {
+            return DEFAULT_OVERLAY_Y;
+        }
+    }
+
+    public static void setOverlayY(Context ctx, int y) {
+        File f = new File(ctx.getFilesDir(), OVERLAY_Y_FILE);
+        try {
+            Files.write(f.toPath(), String.valueOf(y).getBytes(StandardCharsets.UTF_8));
+        } catch (IOException ignored) { }
+    }
 }

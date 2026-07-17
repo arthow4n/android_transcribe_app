@@ -39,7 +39,6 @@ public class LiveSubtitleService extends Service {
     static {
         try {
             System.loadLibrary("c++_shared");
-            System.loadLibrary("onnxruntime");
             System.loadLibrary("android_transcribe_app");
         } catch (UnsatisfiedLinkError e) {
             Log.e(TAG, "Failed to load native libraries", e);
@@ -186,9 +185,49 @@ public class LiveSubtitleService extends Service {
                 PixelFormat.TRANSLUCENT);
 
         params.gravity = Gravity.BOTTOM;
-        params.y = 100; // Margin bottom
+        params.y = SubtitlePrefs.getOverlayY(this);
 
         mWindowManager.addView(mOverlayView, params);
+        makeOverlayDraggable(params);
+    }
+
+    /**
+     * Lets the user drag the overlay vertically; the position is persisted
+     * and restored on the next session. The listener sits on the overlay
+     * root, so the close button (which consumes its own touches) keeps
+     * working. With {@link Gravity#BOTTOM}, {@code params.y} is the offset
+     * above the bottom edge, so it grows as the finger moves up.
+     */
+    private void makeOverlayDraggable(WindowManager.LayoutParams params) {
+        mOverlayView.setOnTouchListener(new View.OnTouchListener() {
+            private float downRawY;
+            private int downParamsY;
+
+            @Override
+            public boolean onTouch(View v, android.view.MotionEvent event) {
+                switch (event.getAction()) {
+                    case android.view.MotionEvent.ACTION_DOWN:
+                        downRawY = event.getRawY();
+                        downParamsY = params.y;
+                        return true;
+                    case android.view.MotionEvent.ACTION_MOVE: {
+                        int maxY = getResources().getDisplayMetrics().heightPixels
+                                - mOverlayView.getHeight();
+                        params.y = Math.max(0, Math.min(maxY,
+                                downParamsY + (int) (downRawY - event.getRawY())));
+                        if (mOverlayView != null) {
+                            mWindowManager.updateViewLayout(mOverlayView, params);
+                        }
+                        return true;
+                    }
+                    case android.view.MotionEvent.ACTION_UP:
+                    case android.view.MotionEvent.ACTION_CANCEL:
+                        SubtitlePrefs.setOverlayY(LiveSubtitleService.this, params.y);
+                        return true;
+                }
+                return false;
+            }
+        });
     }
 
     private void removeOverlay() {

@@ -82,7 +82,6 @@ if (!isBundle) {
 dependencies {
     // Material Components (Material 3 / Material You). Pulls in AppCompat.
     implementation("com.google.android.material:material:1.12.0")
-    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.22.0")
 
     // Material/AppCompat transitively pull the legacy kotlin-stdlib-jdk7/jdk8:1.6.21
     // (via kotlinx-coroutines-android), whose classes were folded into
@@ -95,26 +94,6 @@ dependencies {
     }
 }
 
-// Dedicated configuration to resolve the ORT AAR for the Rust build
-val ortNative: Configuration by configurations.creating
-dependencies {
-    ortNative("com.microsoft.onnxruntime:onnxruntime-android:1.22.0")
-}
-
-// ---------------------------------------------------------------------------
-// Task to extract ORT headers & native libs for Rust compilation
-// ---------------------------------------------------------------------------
-
-val extractOrt by tasks.registering(Copy::class) {
-    description = "Extract ONNX Runtime AAR for Rust build"
-    group = "build"
-
-    from(ortNative.elements.map { fileCollection ->
-        fileCollection.map { zipTree(it) }
-    })
-    into(layout.buildDirectory.dir("ort-extracted"))
-}
-
 // ---------------------------------------------------------------------------
 // Rust / cargo-ndk build task
 // ---------------------------------------------------------------------------
@@ -122,8 +101,6 @@ val extractOrt by tasks.registering(Copy::class) {
 val cargoNdkBuild by tasks.registering(Exec::class) {
     description = "Build Rust native code via cargo-ndk"
     group = "build"
-
-    dependsOn(extractOrt)
 
     workingDir = rootProject.projectDir   // Cargo.toml lives at project root
 
@@ -134,10 +111,17 @@ val cargoNdkBuild by tasks.registering(Exec::class) {
         ?: android.ndkDirectory.absolutePath
 
     environment("ANDROID_NDK_HOME", ndkDir)
-
-    val extractDir = layout.buildDirectory.dir("ort-extracted").get().asFile
-    environment("ORT_LIB_LOCATION", File(extractDir, "jni/arm64-v8a").absolutePath)
-    environment("ORT_INCLUDE_DIR", File(extractDir, "headers").absolutePath)
+    // transcribe-cpp-sys builds its C++ core through CMake, whose Android
+    // platform detection needs one of these (ANDROID_NDK_HOME is not enough).
+    environment("ANDROID_NDK_ROOT", ndkDir)
+    environment("ANDROID_NDK", ndkDir)
+    // ggml cannot autodetect the CPU when cross-compiling and falls back to
+    // baseline armv8-a, losing the dotprod/fp16 kernels its quantized matmuls
+    // rely on (several times slower). armv8.2-a+dotprod+fp16 is supported by
+    // arm64 phones from ~2018 on; the engine refuses older CPUs with a clear
+    // error at load (see check_cpu_features in src/engine.rs) instead of
+    // crashing mid-inference.
+    environment("TRANSCRIBE_CMAKE_ARGS", "-DGGML_CPU_ARM_ARCH=armv8.2-a+dotprod+fp16")
 
     val jniLibsDir = project.file("src/main/jniLibs")
 
@@ -180,24 +164,14 @@ tasks.named("preBuild") {
 
 data class ModelFile(val name: String, val sha256: String)
 
-// Small metadata files stay in app/src/main/assets (always in base module)
-val appAssetFiles = listOf(
-    ModelFile("config.json", ""),
-    ModelFile("vocab.txt", ""),
-)
-
-// Large ONNX model files go into the model_assets asset pack so the base
-// module stays under the Play Store 200 MB compressed-download limit.
+// The bundled GGUF goes into the model_assets asset pack so the base module
+// stays under the Play Store 200 MB compressed-download limit.
 val modelPackFiles = listOf(
-    ModelFile("encoder-model.int8.onnx",
-        "6139d2fa7e1b086097b277c7149725edbab89cc7c7ae64b23c741be4055aff09"),
-    ModelFile("decoder_joint-model.int8.onnx",
-        "eea7483ee3d1a30375daedc8ed83e3960c91b098812127a0d99d1c8977667a70"),
-    ModelFile("nemo128.onnx",
-        "a9fde1486ebfcc08f328d75ad4610c67835fea58c73ba57e3209a6f6cf019e9f"),
+    ModelFile("parakeet-tdt-0.6b-v3-Q4_K_M.gguf",
+        "b68557be1e3c40207fd7c4bd9d63f1d3316b963f15325bfb0cc16a8bb0ffd181"),
 )
 
-val huggingFaceRepo = "https://huggingface.co/istupakov/parakeet-tdt-0.6b-v3-onnx/resolve/main"
+val huggingFaceRepo = "https://huggingface.co/handy-computer/parakeet-tdt-0.6b-v3-gguf/resolve/main"
 
 fun downloadToDir(assetsDir: File, files: List<ModelFile>) {
     assetsDir.mkdirs()
@@ -257,19 +231,15 @@ fun downloadToDir(assetsDir: File, files: List<ModelFile>) {
 }
 
 val downloadModels by tasks.registering {
-    description = "Download HuggingFace Parakeet model assets"
+    description = "Download the built-in speech model (GGUF)"
     group = "build"
 
-    // Small metadata -> app assets (base module)
-    val appAssetsDir = project.file("src/main/assets/parakeet-tdt-0.6b-v3-int8")
-    // Large ONNX models -> asset pack (separate install-time delivery)
-    val packAssetsDir = rootProject.file("model_assets/src/main/assets/parakeet-tdt-0.6b-v3-int8")
+    // The GGUF -> asset pack (separate install-time delivery)
+    val packAssetsDir = rootProject.file("model_assets/src/main/assets/builtin-model")
 
-    outputs.dir(appAssetsDir)
     outputs.dir(packAssetsDir)
 
     doLast {
-        downloadToDir(appAssetsDir, appAssetFiles)
         downloadToDir(packAssetsDir, modelPackFiles)
     }
 }

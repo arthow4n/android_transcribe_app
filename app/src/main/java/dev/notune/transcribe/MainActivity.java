@@ -36,9 +36,8 @@ public class MainActivity extends AppCompatActivity {
     static {
         try {
             System.loadLibrary("c++_shared");
-            System.loadLibrary("onnxruntime");
         } catch (UnsatisfiedLinkError e) {
-            Log.w(TAG, "Failed to load dependencies (c++_shared or onnxruntime)", e);
+            Log.w(TAG, "Failed to load c++_shared", e);
         }
         System.loadLibrary("android_transcribe_app");
     }
@@ -79,6 +78,9 @@ public class MainActivity extends AppCompatActivity {
         });
 
         findViewById(R.id.btn_subs_advanced).setOnClickListener(v -> showSubsAdvancedDialog());
+
+        findViewById(R.id.btn_models).setOnClickListener(v ->
+                startActivity(new Intent(this, ModelsActivity.class)));
 
         // Settings stored as marker files in filesDir (readable from the :ime
         // process and native code without a content provider).
@@ -308,8 +310,9 @@ public class MainActivity extends AppCompatActivity {
     // Called from Rust
     public void onStatusUpdate(String status) {
         runOnUiThread(() -> {
-            statusText.setText("Status: " + status);
-            if ("Ready".equals(status)) {
+            statusText.setText(status);
+            // "Ready" may carry a suffix, e.g. "Ready (this model can't translate)".
+            if (status.startsWith("Ready")) {
                 startSubsButton.setEnabled(true);
             }
         });

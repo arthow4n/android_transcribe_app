@@ -31,9 +31,9 @@
             android:id="@+id/btn_close_subs"
             android:layout_width="40dp"
             android:layout_height="40dp"
-            android:src="@android:drawable/ic_delete"
+            android:src="@drawable/ic_close"
             android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:tint="#FF5555"
+            android:tint="#FFFFFF"
             android:padding="8dp"/>
 
     </LinearLayout>

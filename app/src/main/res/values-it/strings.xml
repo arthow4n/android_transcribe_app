@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="welcome_title">Immissione vocale e sottotitoli</string>
+    <string name="welcome_subtitle">Completamente offline, privato e veloce.</string>
+
+    <string name="section_ime">Alternativa: tastiera vocale</string>
+    <string name="desc_ime">Preferisci una tastiera dedicata? Attiva la tastiera Offline Voice Input, poi passa a essa dal selettore delle tastiere quando vuoi l\'immissione vocale come tastiera a sé.</string>
+    <string name="btn_ime_settings">Apri impostazioni tastiera</string>
+
+    <string name="section_subs">Sottotitoli in tempo reale</string>
+    <string name="desc_subs">Mostra i sottotitoli per qualsiasi audio riprodotto sul dispositivo. Dopo l\'avvio, scegli \'Condividi tutto lo schermo\' per risultati migliori.</string>
+    <string name="btn_subs_start">Avvia sottotitoli in tempo reale</string>
+    <string name="btn_subs_advanced">Salta la finestra di autorizzazione (avanzato)</string>
+    <string name="subs_advanced_title">Salta la finestra di cattura schermo</string>
+    <string name="subs_advanced_body">Android mostra di solito una finestra «Avviare registrazione o trasmissione?» a ogni avvio dei sottotitoli. Gli utenti esperti possono approvarla una volta tramite adb; poi i sottotitoli si avviano all\'istante:\n\n1. Attiva le opzioni sviluppatore e il debug USB, e collega il dispositivo a un computer con adb.\n\n2. Esegui:\n\n%1$s\n\nEcco fatto: l\'impostazione sopravvive ai riavvii e il debug USB può poi essere disattivato. L\'app in sé non cambia: Android concede semplicemente la finestra automaticamente.\n\nPer annullare:\n\n%2$s\n\nNota: ciò si basa su un comportamento non documentato di Android (l\'app-op PROJECT_MEDIA). Su alcuni dispositivi (es. certe versioni Xiaomi/Samsung) potrebbe non funzionare o essere reimpostato dal sistema; la finestra normale resta sempre il ripiego.</string>
+    <string name="subs_advanced_copy">Copia comando</string>
+    <string name="subs_advanced_copied">Comando copiato</string>
+
+    <string name="status_label">Stato:</string>
+    <string name="status_checking">Verifica dei dati…</string>
+    <string name="status_ready">Pronto</string>
+    <string name="status_error">Errore</string>
+
+    <string name="section_settings">Impostazioni</string>
+    <string name="setting_auto_record">Avvia registrazione automaticamente</string>
+    <string name="setting_auto_record_desc">Inizia a registrare automaticamente all\'apertura della tastiera</string>
+
+    <string name="setting_select_transcription">Seleziona trascrizione</string>
+    <string name="setting_select_transcription_desc">Evidenzia il testo trascritto così da poterlo eliminare con un solo tasto indietro</string>
+
+    <string name="setting_pause_audio">Metti in pausa l\'audio</string>
+    <string name="setting_pause_audio_desc">Metti in pausa l\'audio durante la registrazione</string>
+
+    <string name="setting_record_background">Registra in background</string>
+    <string name="setting_record_background_desc">Continua a registrare quando la tastiera vocale è nascosta; il testo viene inserito al ritorno</string>
+
+    <string name="setting_auto_stop">Arresto automatico dopo il silenzio</string>
+    <string name="setting_auto_stop_desc">Chiudi la finestra di immissione vocale automaticamente ~2 secondi dopo la fine del parlato</string>
+
+    <string name="setting_subtitle_lines">Lunghezza sottotitoli</string>
+    <string name="setting_subtitle_lines_desc">Quante righe mostrano i sottotitoli in tempo reale; il testo più vecchio scorre via</string>
+    <string name="subtitle_lines_2">2 righe</string>
+    <string name="subtitle_lines_4">4 righe</string>
+    <string name="subtitle_lines_all">Tutte</string>
+
+    <string name="models_title">Modelli vocali</string>
+    <string name="models_section">Modello vocale</string>
+    <string name="models_active_section">Modello attivo</string>
+    <string name="models_builtin_sub">Incluso nell\'app · 25 lingue europee</string>
+    <string name="model_desc_parakeet110m">Solo inglese, piccolo e veloce</string>
+    <string name="model_desc_sensevoice">Inglese, cinese, cantonese, giapponese, coreano; veloce</string>
+    <string name="model_desc_whisper_small">99 lingue, compatto; traduce in inglese</string>
+    <string name="model_desc_nemotron">40 lingue incl. cinese, giapponese, coreano, arabo, hindi; con punteggiatura</string>
+    <string name="model_desc_parakeet_v3_q8">Come il modello integrato, maggiore precisione</string>
+    <string name="model_desc_whisper_turbo">99 lingue, il più accurato di questa lista; non traduce</string>
+    <string name="model_desc_browse">Sfoglia tutti i modelli transcribe.cpp</string>
+    <string name="models_desc">Il modello integrato funziona subito. Puoi anche importare qualsiasi modello GGUF di transcribe.cpp che hai scaricato. L\'app resta completamente offline; i download avvengono nel browser. La tastiera vocale applica un cambio di modello dopo il riavvio.</string>
+    <string name="models_loading">Caricamento del modello…</string>
+    <string name="models_import">Importa file del modello (.gguf)</string>
+    <string name="models_importing">Importazione di %1$s…</string>
+    <string name="models_import_done">%1$s importato</string>
+    <string name="models_import_failed">Importazione non riuscita: impossibile copiare il file.</string>
+    <string name="models_import_no_space">Spazio di archiviazione insufficiente per importare questo modello.</string>
+    <string name="models_import_bad_title">Non è un modello GGUF</string>
+    <string name="models_import_bad_body">Seleziona un file di modello .gguf per transcribe.cpp. Tocca «Dove trovare i modelli» per i link di download.</string>
+    <string name="models_links">Dove trovare i modelli</string>
+    <string name="models_links_title">Download dei modelli (apri nel browser)</string>
+    <string name="models_no_browser">Nessun browser trovato per aprire il link.</string>
+    <string name="models_delete">Elimina modello</string>
+    <string name="models_delete_confirm">Eliminare %1$s dall\'archivio dell\'app?</string>
+    <string name="models_language_section">Lingua</string>
+    <string name="models_language_desc">La lingua passata al modello. «Automatico» lascia decidere al modello. Se il parlato viene trascritto nella lingua o nell\'alfabeto sbagliato, scegli la tua lingua esplicitamente. Le lingue non supportate dal modello attivo vengono ignorate.</string>
+    <string name="models_language_auto">Automatico</string>
+    <string name="models_language_saved">Lingua salvata</string>
+    <string name="models_translate">Traduci in inglese</string>
+    <string name="models_translate_desc">Per i modelli che lo supportano (es. Whisper): il parlato in qualsiasi lingua diventa testo inglese, anche nei sottotitoli in tempo reale. Gli altri modelli lo ignorano.</string>
+    <string name="btn_models">Gestisci modelli vocali</string>
+
+    <string name="section_appearance">Aspetto</string>
+    <string name="theme_system">Predefinito di sistema</string>
+    <string name="theme_light">Chiaro</string>
+    <string name="theme_dark">Scuro</string>
+
+    <string name="section_voice">Immissione vocale</string>
+    <string name="voice_status_ready">Pronto. In qualsiasi app, tocca il microfono di una tastiera supportata e il tuo parlato viene digitato nel campo di testo.</string>
+    <string name="voice_status_need_mic">Per l\'immissione vocale è necessario l\'accesso al microfono.</string>
+    <string name="voice_status_almost">Ci sei quasi. Quando tocchi il microfono della tastiera, scegli «Offline Voice Input» e poi «Sempre». Tocca «Prova immissione vocale» qui sotto per configurarlo ora.</string>
+    <string name="btn_voice_try">Prova immissione vocale</string>
+    <string name="btn_voice_grant">Concedi accesso al microfono</string>
+    <string name="btn_voice_help">Guida alla configurazione</string>
+
+    <string name="voice_test_ok">Funziona! Sentito: %1$s</string>
+    <string name="voice_test_empty">Funziona, ma non è stato rilevato alcun parlato.</string>
+    <string name="voice_test_failed">Impossibile avviare l\'immissione vocale su questo dispositivo.</string>
+
+    <string name="voice_help_title">Configurazione dell\'immissione vocale</string>
+    <string name="voice_help_body">Come usarlo\n• Apri qualsiasi app e tocca il microfono di una tastiera/app supportata. Appare un piccolo pannello, parli, tocchi per fermare e il testo viene inserito. (Attiva «Arresto automatico dopo il silenzio» nelle impostazioni per farlo fermare da solo.)\n\nQuali tastiere aprono il pannello vocale\n• Microsoft SwiftKey (non open source) e la ricerca vocale dei siti web aprono il pannello direttamente.\n• AnySoftKeyboard è la via open source al pannello: il suo tasto microfono lo apre finché nessuna tastiera vocale è attivata sul sistema.\n\nAltre tastiere open source\n• HeliBoard, FlorisBoard, OpenBoard, Fossify Keyboard e Unexpected Keyboard non aprono il pannello: il loro tasto microfono passa alla tastiera «Offline Voice Input». Attivala una volta (vedi «Alternativa: tastiera vocale»), parla lì e torna indietro con il suo tasto di cambio tastiera. FUTO Keyboard include una propria immissione vocale.\n• Gboard usa solo l\'immissione vocale di Google e non può usare affatto questa app.\n\nSe si apre l\'immissione vocale di SwiftKey\n• Impostazioni → Immissione avanzata → disattiva «Immissione vocale multimodale».\n• Poi tocca di nuovo il microfono e scegli «Offline Voice Input».\n\nSe Android chiede quale app usare\n• Scegli «Offline Voice Input» e tocca «Sempre».\n\nSe si apre sempre un\'altra app\n• Apri Impostazioni → App → quell\'app → «Apri per impostazione predefinita» → Cancella impostazioni predefinite, e riprova.</string>
+</resources>

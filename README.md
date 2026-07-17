@@ -16,7 +16,8 @@ height="80">](https://play.google.com/store/apps/details?id=dev.notune.transcrib
 - **Live Subtitles:** Real-time captions for any audio/video playing on your device.
 - **Optional voice keyboard:** A built-in keyboard you can switch to for voice input wherever you prefer it.
 - **Supported Languages:** Bulgarian, Croatian, Czech, Danish, Dutch, English, Estonian, Finnish, French, German, Greek, Hungarian, Italian, Latvian, Lithuanian, Maltese, Polish, Portuguese, Romanian, Slovak, Slovenian, Spanish, Swedish, Russian, Ukrainian.
-- **Rust Backend:** Efficient and safe native code using [transcribe-rs](https://github.com/cjpais/transcribe-rs).
+- **Custom models:** Import any [transcribe.cpp](https://github.com/handy-computer/transcribe.cpp) GGUF model (Whisper, Nemotron streaming, Canary, more Parakeet variants, …) from a downloaded file — the app stays fully offline; downloads happen in your browser.
+- **Efficient native backend:** All models run through [transcribe.cpp](https://github.com/handy-computer/transcribe.cpp) (ggml), wrapped in a safe Rust core.
 
 ## Screenshots
 
@@ -43,11 +44,12 @@ The app plugs into Android's speech-to-text in **three** ways, so it works with 
 
 Tap **Try voice input** on the home screen to test the whole flow in one tap.
 
-**Keyboard notes:**
+**Keyboard notes** (mic-key behavior verified against each keyboard's source and tested in the emulator):
 
-- **SwiftKey:** works out of the box. If SwiftKey's own voice typing opens instead, go to SwiftKey Settings → *Rich input* → turn off **Multi-modal voice typing**.
-- **HeliBoard / AnySoftKeyboard / OpenBoard:** their mic key switches to the system *voice input keyboard* — enable the **Offline Voice Input** keyboard (see below) and it will be used automatically.
-- **Gboard:** only uses Google's own voice typing, so it can't hand speech to this app. Use one of the keyboards above, or the built-in voice keyboard.
+- **Microsoft SwiftKey** (not open source) opens the compact voice panel directly, like website voice search does. If SwiftKey's own voice typing opens instead, go to SwiftKey Settings → *Rich input* → turn off **Multi-modal voice typing**.
+- **AnySoftKeyboard** is the open-source way to get the panel: its mic key fires the standard speech intent as long as no *voice keyboard* is enabled on the system. (If one is enabled — ours or Google's — it switches to that instead.)
+- **HeliBoard, FlorisBoard, OpenBoard, Fossify Keyboard, Unexpected Keyboard:** their mic key never opens the panel — it switches to the system *voice input keyboard*. Enable the **Offline Voice Input** keyboard (see below) and it opens automatically; its keyboard-switch key takes you back. **FUTO Keyboard** ships its own built-in voice input.
+- **Gboard:** only uses Google's own voice typing, so it can't hand speech to this app at all.
 - If Android shows a chooser, pick **Offline Voice Input** and tap **Always**. If another app always opens, clear its default in *Settings → Apps*.
 
 ### Dedicated voice keyboard (optional)
@@ -71,6 +73,10 @@ adb shell appops set --user 0 dev.notune.transcribe PROJECT_MEDIA default
 ```
 
 This relies on the undocumented `PROJECT_MEDIA` app-op; on some OEM builds it may not work or may get reset by the system — the normal dialog remains the fallback. The same instructions are shown in-app under *Skip the permission dialog (advanced)*.
+
+### Custom speech models
+
+The built-in Parakeet model works out of the box. Under **Manage speech models** you can additionally import any [transcribe.cpp](https://github.com/handy-computer/transcribe.cpp) GGUF model: download a `.gguf` file in your browser (the in-app *Where to get models* dialog lists direct links, e.g. a tiny 135 MB English-only Parakeet, the multilingual Nemotron 3.5 streaming model with punctuation, or Whisper large-v3-turbo), then import it via the system file picker and select it. The app itself needs no internet permission — model files are simply copied into the app's private storage. An optional language hint (e.g. `en-US`, or `auto`) can be set for imported models.
 
 ## Prerequisites
 
@@ -131,7 +137,7 @@ export STORE_PASS=yourpassword
 
 ### Model Assets
 
-The Parakeet TDT model files (~670 MB) are automatically downloaded from HuggingFace during the first build via a Gradle task. Checksums are verified with SHA-256. No manual download is needed.
+The built-in Parakeet TDT GGUF model (~485 MB) is automatically downloaded from HuggingFace during the first build via a Gradle task. The checksum is verified with SHA-256. No manual download is needed.
 
 ## Project Structure
 
@@ -144,8 +150,7 @@ The Parakeet TDT model files (~670 MB) are automatically downloaded from Hugging
 │       ├── assets/                       # Model files (downloaded at build time)
 │       └── jniLibs/                      # Native .so files (built by cargo-ndk)
 ├── src/                                  # Rust source code (cdylib)
-├── transcribe-rs/                        # Rust transcription library (submodule)
-├── Cargo.toml                            # Rust workspace
+├── Cargo.toml                            # Rust crate manifest
 ├── build.gradle.kts                      # Root Gradle config
 ├── app/build.gradle.kts                  # App module config (AGP 8.7.3)
 ├── settings.gradle.kts
@@ -156,9 +161,9 @@ The Parakeet TDT model files (~670 MB) are automatically downloaded from Hugging
 ## Acknowledgments
 
 - **Speech Model:** [Parakeet TDT 0.6b v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) by NVIDIA.
-    - ONNX quantization by [istupakov](https://huggingface.co/istupakov/parakeet-tdt-0.6b-v3-onnx).
+    - GGUF conversion by [handy-computer](https://huggingface.co/handy-computer/parakeet-tdt-0.6b-v3-gguf).
     - Licensed under [CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/).
-- **Inference Backend:** [transcribe-rs](https://github.com/cjpais/transcribe-rs) by CJ Pais.
+- **Inference Backend:** [transcribe.cpp](https://github.com/handy-computer/transcribe.cpp) by CJ Pais / Handy Computer.
 
 ## License
 

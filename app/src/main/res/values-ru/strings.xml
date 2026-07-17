@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="welcome_title">Голосовой ввод и субтитры</string>
+    <string name="welcome_subtitle">Полностью офлайн, приватно и быстро.</string>
+
+    <string name="section_ime">Альтернатива: голосовая клавиатура</string>
+    <string name="desc_ime">Предпочитаете отдельную клавиатуру? Включите клавиатуру Offline Voice Input и переключайтесь на неё через переключатель клавиатур, когда хотите голосовой ввод как отдельную клавиатуру.</string>
+    <string name="btn_ime_settings">Открыть настройки клавиатуры</string>
+
+    <string name="section_subs">Субтитры в реальном времени</string>
+    <string name="desc_subs">Показывайте субтитры для любого аудио, воспроизводимого на устройстве. После запуска выберите \'Демонстрация всего экрана\' для лучших результатов.</string>
+    <string name="btn_subs_start">Запустить субтитры</string>
+    <string name="btn_subs_advanced">Пропустить диалог разрешения (для опытных)</string>
+    <string name="subs_advanced_title">Пропустить диалог захвата экрана</string>
+    <string name="subs_advanced_body">Android обычно показывает диалог «Начать запись или трансляцию?» при каждом запуске субтитров. Опытные пользователи могут заранее одобрить его один раз через adb; после этого субтитры запускаются мгновенно:\n\n1. Включите режим разработчика и отладку по USB, подключите устройство к компьютеру с adb.\n\n2. Выполните:\n\n%1$s\n\nВот и всё: настройка сохраняется после перезагрузок, а отладку по USB потом можно отключить. Само приложение не меняется: Android просто автоматически подтверждает диалог.\n\nЧтобы отменить:\n\n%2$s\n\nПримечание: это опирается на недокументированное поведение Android (app-op PROJECT_MEDIA). На некоторых устройствах (например, отдельных сборках Xiaomi/Samsung) это может не работать или сбрасываться системой; обычный диалог всегда остаётся запасным вариантом.</string>
+    <string name="subs_advanced_copy">Скопировать команду</string>
+    <string name="subs_advanced_copied">Команда скопирована</string>
+
+    <string name="status_label">Статус:</string>
+    <string name="status_checking">Проверка данных…</string>
+    <string name="status_ready">Готово</string>
+    <string name="status_error">Ошибка</string>
+
+    <string name="section_settings">Настройки</string>
+    <string name="setting_auto_record">Автозапуск записи</string>
+    <string name="setting_auto_record_desc">Автоматически начинать запись при открытии клавиатуры</string>
+
+    <string name="setting_select_transcription">Выделять транскрипцию</string>
+    <string name="setting_select_transcription_desc">Выделять расшифрованный текст, чтобы его можно было удалить одним нажатием Backspace</string>
+
+    <string name="setting_pause_audio">Приостанавливать аудио</string>
+    <string name="setting_pause_audio_desc">Приостанавливать аудио во время записи</string>
+
+    <string name="setting_record_background">Запись в фоне</string>
+    <string name="setting_record_background_desc">Продолжать запись, когда голосовая клавиатура скрыта; текст вставляется по возвращении</string>
+
+    <string name="setting_auto_stop">Автостоп при тишине</string>
+    <string name="setting_auto_stop_desc">Автоматически закрывать окно голосового ввода примерно через 2 секунды после окончания речи</string>
+
+    <string name="setting_subtitle_lines">Длина субтитров</string>
+    <string name="setting_subtitle_lines_desc">Сколько строк показывают субтитры; более старый текст прокручивается</string>
+    <string name="subtitle_lines_2">2 строки</string>
+    <string name="subtitle_lines_4">4 строки</string>
+    <string name="subtitle_lines_all">Все</string>
+
+    <string name="models_title">Речевые модели</string>
+    <string name="models_section">Речевая модель</string>
+    <string name="models_active_section">Активная модель</string>
+    <string name="models_builtin_sub">Встроена в приложение · 25 европейских языков</string>
+    <string name="model_desc_parakeet110m">Только английский, маленькая и быстрая</string>
+    <string name="model_desc_sensevoice">Английский, китайский, кантонский, японский, корейский; быстрая</string>
+    <string name="model_desc_whisper_small">99 языков, компактная; переводит на английский</string>
+    <string name="model_desc_nemotron">40 языков, вкл. китайский, японский, корейский, арабский, хинди; с пунктуацией</string>
+    <string name="model_desc_parakeet_v3_q8">Как встроенная модель, но точнее</string>
+    <string name="model_desc_whisper_turbo">99 языков, самая точная в этом списке; не переводит</string>
+    <string name="model_desc_browse">Все модели transcribe.cpp</string>
+    <string name="models_desc">Встроенная модель работает сразу. Вы также можете импортировать любую скачанную модель GGUF для transcribe.cpp. Приложение остаётся полностью офлайн; загрузки выполняются в браузере. Голосовая клавиатура применяет смену модели после перезапуска.</string>
+    <string name="models_loading">Загрузка модели…</string>
+    <string name="models_import">Импортировать файл модели (.gguf)</string>
+    <string name="models_importing">Импорт %1$s…</string>
+    <string name="models_import_done">%1$s импортирован</string>
+    <string name="models_import_failed">Сбой импорта: не удалось скопировать файл.</string>
+    <string name="models_import_no_space">Недостаточно свободной памяти для импорта этой модели.</string>
+    <string name="models_import_bad_title">Это не модель GGUF</string>
+    <string name="models_import_bad_body">Выберите файл модели .gguf для transcribe.cpp. Нажмите «Где взять модели» для ссылок на скачивание.</string>
+    <string name="models_links">Где взять модели</string>
+    <string name="models_links_title">Загрузки моделей (открыть в браузере)</string>
+    <string name="models_no_browser">Не найден браузер для открытия ссылки.</string>
+    <string name="models_delete">Удалить модель</string>
+    <string name="models_delete_confirm">Удалить %1$s из хранилища приложения?</string>
+    <string name="models_language_section">Язык</string>
+    <string name="models_language_desc">Язык, передаваемый модели. «Автоматически» позволяет модели решать сама. Если речь распознаётся не на том языке или не в том алфавите, выберите язык явно. Языки, не поддерживаемые активной моделью, игнорируются.</string>
+    <string name="models_language_auto">Автоматически</string>
+    <string name="models_language_saved">Язык сохранён</string>
+    <string name="models_translate">Переводить на английский</string>
+    <string name="models_translate_desc">Для моделей с поддержкой перевода (например, Whisper): речь на любом языке становится английским текстом, в том числе в субтитрах. Остальные модели игнорируют эту настройку.</string>
+    <string name="btn_models">Управление речевыми моделями</string>
+
+    <string name="section_appearance">Оформление</string>
+    <string name="theme_system">Как в системе</string>
+    <string name="theme_light">Светлая</string>
+    <string name="theme_dark">Тёмная</string>
+
+    <string name="section_voice">Голосовой ввод</string>
+    <string name="voice_status_ready">Готово. В любом приложении нажмите микрофон на поддерживаемой клавиатуре, и ваша речь будет введена в текстовое поле.</string>
+    <string name="voice_status_need_mic">Для голосового ввода нужен доступ к микрофону.</string>
+    <string name="voice_status_almost">Почти готово. Когда вы нажмёте микрофон на клавиатуре, выберите «Offline Voice Input», затем «Всегда». Нажмите «Проверить голосовой ввод» ниже, чтобы настроить это сейчас.</string>
+    <string name="btn_voice_try">Проверить голосовой ввод</string>
+    <string name="btn_voice_grant">Предоставить доступ к микрофону</string>
+    <string name="btn_voice_help">Помощь по настройке</string>
+
+    <string name="voice_test_ok">Работает! Распознано: %1$s</string>
+    <string name="voice_test_empty">Работает, но речь не обнаружена.</string>
+    <string name="voice_test_failed">Не удалось запустить голосовой ввод на этом устройстве.</string>
+
+    <string name="voice_help_title">Настройка голосового ввода</string>
+    <string name="voice_help_body">Как использовать\n• Откройте любое приложение и нажмите микрофон на поддерживаемой клавиатуре/в приложении. Появится небольшая панель, вы говорите, нажимаете для остановки, и текст вставляется. (Включите «Автостоп при тишине» в настройках, чтобы она останавливалась сама.)\n\nКакие клавиатуры открывают голосовую панель\n• Microsoft SwiftKey (не с открытым кодом) и голосовой поиск на сайтах открывают панель напрямую.\n• AnySoftKeyboard — путь к панели с открытым кодом: его клавиша микрофона открывает её, пока в системе не включена ни одна голосовая клавиатура.\n\nДругие клавиатуры с открытым кодом\n• HeliBoard, FlorisBoard, OpenBoard, Fossify Keyboard и Unexpected Keyboard панель не открывают: их клавиша микрофона переключает на клавиатуру «Offline Voice Input». Включите её один раз (см. «Альтернатива: голосовая клавиатура»), говорите там и возвращайтесь клавишей переключения клавиатур. FUTO Keyboard содержит собственный голосовой ввод.\n• Gboard использует только голосовой ввод Google и вообще не может использовать это приложение.\n\nЕсли открывается собственный голосовой ввод SwiftKey\n• Настройки → Расширенный ввод → отключите «Мультимодальный голосовой ввод».\n• Затем снова нажмите микрофон и выберите «Offline Voice Input».\n\nЕсли Android спрашивает, какое приложение использовать\n• Выберите «Offline Voice Input» и нажмите «Всегда».\n\nЕсли всегда открывается другое приложение\n• Откройте Настройки → Приложения → это приложение → «Открывать по умолчанию» → Очистить настройки по умолчанию, и попробуйте снова.</string>
+</resources>

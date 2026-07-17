@@ -8,6 +8,9 @@
     <style name="AppTheme" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="colorPrimary">@color/colorPrimary</item>
         <item name="colorOnPrimary">@color/white</item>
+        <!-- Dark status-bar icons on the light background; the night variant
+             (values-night/styles.xml) switches them back to light. -->
+        <item name="android:windowLightStatusBar">true</item>
     </style>
 
     <!-- Voice-input popup (RecognizeActivity): a translucent window so the

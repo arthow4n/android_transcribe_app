@@ -1,13 +1,21 @@
+//! Extraction of the bundled speech model from APK assets into filesDir.
+
 use jni::objects::JObject;
 use jni::JNIEnv;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
+/// Asset directory (and filesDir subdirectory) holding the bundled GGUF.
+const BUILTIN_MODEL_DIR: &str = "builtin-model";
 /// Marker file written after a successful extraction. If this file is missing,
 /// the directory is assumed to be incomplete (e.g. interrupted mid-extraction)
 /// and the assets will be re-extracted.
 const EXTRACTION_COMPLETE_MARKER: &str = ".extraction_complete";
+/// Model directory of the pre-GGUF (ONNX) app versions; deleted on sight so
+/// upgrades don't leave ~670 MB of dead files behind.
+const LEGACY_MODEL_DIR: &str = "parakeet-tdt-0.6b-v3-int8";
 
-pub fn extract_assets(env: &mut JNIEnv, context: &JObject) -> anyhow::Result<PathBuf> {
+/// Resolves the app's `filesDir` via the given Context.
+pub fn files_dir(env: &mut JNIEnv, context: &JObject) -> anyhow::Result<PathBuf> {
     let files_dir_obj = env
         .call_method(context, "getFilesDir", "()Ljava/io/File;", &[])?
         .l()?;
@@ -20,14 +28,26 @@ pub fn extract_assets(env: &mut JNIEnv, context: &JObject) -> anyhow::Result<Pat
         )?
         .l()?;
     let path_string: String = env.get_string(&path_str_obj.into())?.into();
+    Ok(PathBuf::from(path_string))
+}
 
-    let base_path = PathBuf::from(path_string);
-    let model_dir = base_path.join("parakeet-tdt-0.6b-v3-int8");
+/// Extracts the bundled model from APK assets (if not already done) and
+/// returns the path of its GGUF file.
+pub fn extract_builtin_model(env: &mut JNIEnv, context: &JObject) -> anyhow::Result<PathBuf> {
+    let base_path = files_dir(env, context)?;
+
+    let legacy_dir = base_path.join(LEGACY_MODEL_DIR);
+    if legacy_dir.exists() {
+        log::info!("Removing legacy ONNX model directory");
+        let _ = std::fs::remove_dir_all(&legacy_dir);
+    }
+
+    let model_dir = base_path.join(BUILTIN_MODEL_DIR);
     let marker_file = model_dir.join(EXTRACTION_COMPLETE_MARKER);
 
     // Only skip extraction if the marker file exists (proves prior extraction completed)
     if marker_file.exists() {
-        return Ok(model_dir);
+        return find_gguf(&model_dir);
     }
 
     // Incomplete or missing — wipe and re-extract
@@ -46,22 +66,44 @@ pub fn extract_assets(env: &mut JNIEnv, context: &JObject) -> anyhow::Result<Pat
             &[],
         )?
         .l()?;
-    let asset_dir_name = "parakeet-tdt-0.6b-v3-int8";
 
-    copy_assets_recursively(env, &asset_manager_obj, asset_dir_name, &base_path)?;
+    copy_assets_recursively(env, &asset_manager_obj, BUILTIN_MODEL_DIR, &base_path)?;
 
     // Write the marker file to indicate successful completion
     std::fs::write(&marker_file, "ok")?;
     log::info!("Asset extraction complete, marker written");
 
-    Ok(model_dir)
+    find_gguf(&model_dir)
+}
+
+/// Removes the extraction marker so the next load re-extracts the bundled
+/// model — called when a load fails on (likely corrupt) extracted files.
+pub fn invalidate_builtin_model(model_path: &Path) {
+    if let Some(dir) = model_path.parent() {
+        let marker = dir.join(EXTRACTION_COMPLETE_MARKER);
+        if marker.exists() {
+            log::warn!("Model load failed, removing extraction marker for re-extraction");
+            let _ = std::fs::remove_file(&marker);
+        }
+    }
+}
+
+/// Returns the single `.gguf` file in `dir`.
+fn find_gguf(dir: &Path) -> anyhow::Result<PathBuf> {
+    for entry in std::fs::read_dir(dir)? {
+        let path = entry?.path();
+        if path.extension().is_some_and(|ext| ext.eq_ignore_ascii_case("gguf")) {
+            return Ok(path);
+        }
+    }
+    anyhow::bail!("no GGUF file found in {}", dir.display())
 }
 
 fn copy_assets_recursively(
     env: &mut JNIEnv,
     asset_manager: &JObject,
     path: &str,
-    target_root: &PathBuf,
+    target_root: &Path,
 ) -> anyhow::Result<()> {
     use jni::objects::JObjectArray;
 
@@ -104,7 +146,7 @@ fn copy_asset_file(
     env: &mut JNIEnv,
     asset_manager: &JObject,
     asset_path: &str,
-    target_root: &PathBuf,
+    target_root: &Path,
 ) -> anyhow::Result<()> {
     let path_jstring = env.new_string(asset_path)?;
     let result = env.call_method(

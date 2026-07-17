@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="welcome_title">Saisie vocale &amp; sous-titres</string>
+    <string name="welcome_subtitle">Entièrement hors ligne, privé et rapide.</string>
+
+    <string name="section_ime">Alternative : clavier vocal</string>
+    <string name="desc_ime">Vous préférez un clavier dédié ? Activez le clavier Offline Voice Input, puis passez-y depuis le sélecteur de clavier quand vous voulez la saisie vocale comme clavier à part entière.</string>
+    <string name="btn_ime_settings">Ouvrir les paramètres du clavier</string>
+
+    <string name="section_subs">Sous-titres en direct</string>
+    <string name="desc_subs">Affichez des sous-titres pour tout audio lu sur votre appareil. Après le démarrage, choisissez \'Partager tout l\'écran\' pour de meilleurs résultats.</string>
+    <string name="btn_subs_start">Démarrer les sous-titres en direct</string>
+    <string name="btn_subs_advanced">Ignorer la boîte de dialogue d\'autorisation (avancé)</string>
+    <string name="subs_advanced_title">Ignorer la boîte de dialogue de capture d\'écran</string>
+    <string name="subs_advanced_body">Android affiche normalement une boîte de dialogue « Démarrer l\'enregistrement ou la diffusion ? » à chaque démarrage des sous-titres. Les utilisateurs avancés peuvent l\'approuver une fois pour toutes via adb ; ensuite les sous-titres démarrent instantanément :\n\n1. Activez les options pour développeurs et le débogage USB, puis connectez votre appareil à un ordinateur avec adb.\n\n2. Exécutez :\n\n%1$s\n\nC\'est tout : le réglage survit aux redémarrages, et le débogage USB peut ensuite être désactivé. L\'application ne change pas : Android accorde simplement la boîte de dialogue automatiquement.\n\nPour annuler :\n\n%2$s\n\nRemarque : ceci repose sur un comportement non documenté d\'Android (l\'app-op PROJECT_MEDIA). Sur certains appareils (p. ex. certaines versions Xiaomi/Samsung), cela peut ne pas fonctionner ou être réinitialisé par le système ; la boîte de dialogue normale reste toujours le repli.</string>
+    <string name="subs_advanced_copy">Copier la commande</string>
+    <string name="subs_advanced_copied">Commande copiée</string>
+
+    <string name="status_label">État :</string>
+    <string name="status_checking">Vérification des données…</string>
+    <string name="status_ready">Prêt</string>
+    <string name="status_error">Erreur</string>
+
+    <string name="section_settings">Paramètres</string>
+    <string name="setting_auto_record">Démarrage automatique de l\'enregistrement</string>
+    <string name="setting_auto_record_desc">Commencer automatiquement l\'enregistrement à l\'ouverture du clavier</string>
+
+    <string name="setting_select_transcription">Sélectionner la transcription</string>
+    <string name="setting_select_transcription_desc">Surligner le texte transcrit pour pouvoir le supprimer d\'un seul retour arrière</string>
+
+    <string name="setting_pause_audio">Mettre l\'audio en pause</string>
+    <string name="setting_pause_audio_desc">Mettre l\'audio en pause pendant l\'enregistrement</string>
+
+    <string name="setting_record_background">Enregistrer en arrière-plan</string>
+    <string name="setting_record_background_desc">Continuer l\'enregistrement quand le clavier vocal est masqué ; le texte est inséré à votre retour</string>
+
+    <string name="setting_auto_stop">Arrêt automatique après un silence</string>
+    <string name="setting_auto_stop_desc">Fermer automatiquement la fenêtre de saisie vocale ~2 secondes après la fin de la parole</string>
+
+    <string name="setting_subtitle_lines">Longueur des sous-titres</string>
+    <string name="setting_subtitle_lines_desc">Nombre de lignes affichées par les sous-titres en direct ; le texte plus ancien défile</string>
+    <string name="subtitle_lines_2">2 lignes</string>
+    <string name="subtitle_lines_4">4 lignes</string>
+    <string name="subtitle_lines_all">Toutes</string>
+
+    <string name="models_title">Modèles vocaux</string>
+    <string name="models_section">Modèle vocal</string>
+    <string name="models_active_section">Modèle actif</string>
+    <string name="models_builtin_sub">Inclus dans l\'application · 25 langues européennes</string>
+    <string name="model_desc_parakeet110m">Anglais uniquement, petit et rapide</string>
+    <string name="model_desc_sensevoice">Anglais, chinois, cantonais, japonais, coréen ; rapide</string>
+    <string name="model_desc_whisper_small">99 langues, compact ; traduit vers l\'anglais</string>
+    <string name="model_desc_nemotron">40 langues dont chinois, japonais, coréen, arabe, hindi ; avec ponctuation</string>
+    <string name="model_desc_parakeet_v3_q8">Comme le modèle intégré, précision supérieure</string>
+    <string name="model_desc_whisper_turbo">99 langues, le plus précis de cette liste ; ne traduit pas</string>
+    <string name="model_desc_browse">Parcourir tous les modèles transcribe.cpp</string>
+    <string name="models_desc">Le modèle intégré fonctionne immédiatement. Vous pouvez aussi importer n\'importe quel modèle GGUF transcribe.cpp téléchargé. L\'application reste entièrement hors ligne ; les téléchargements passent par votre navigateur. Le clavier vocal prend en compte un changement de modèle après son redémarrage.</string>
+    <string name="models_loading">Chargement du modèle…</string>
+    <string name="models_import">Importer un fichier de modèle (.gguf)</string>
+    <string name="models_importing">Importation de %1$s…</string>
+    <string name="models_import_done">%1$s importé</string>
+    <string name="models_import_failed">Échec de l\'importation : le fichier n\'a pas pu être copié.</string>
+    <string name="models_import_no_space">Espace de stockage insuffisant pour importer ce modèle.</string>
+    <string name="models_import_bad_title">Pas un modèle GGUF</string>
+    <string name="models_import_bad_body">Veuillez sélectionner un fichier de modèle .gguf pour transcribe.cpp. Touchez « Où trouver des modèles » pour les liens de téléchargement.</string>
+    <string name="models_links">Où trouver des modèles</string>
+    <string name="models_links_title">Téléchargements de modèles (dans le navigateur)</string>
+    <string name="models_no_browser">Aucun navigateur trouvé pour ouvrir le lien.</string>
+    <string name="models_delete">Supprimer le modèle</string>
+    <string name="models_delete_confirm">Supprimer %1$s du stockage de l\'application ?</string>
+    <string name="models_language_section">Langue</string>
+    <string name="models_language_desc">La langue transmise au modèle. « Automatique » laisse le modèle décider. Si la parole est transcrite dans la mauvaise langue ou le mauvais alphabet, choisissez votre langue explicitement. Les langues non prises en charge par le modèle actif sont ignorées.</string>
+    <string name="models_language_auto">Automatique</string>
+    <string name="models_language_saved">Langue enregistrée</string>
+    <string name="models_translate">Traduire en anglais</string>
+    <string name="models_translate_desc">Pour les modèles qui le prennent en charge (p. ex. Whisper) : la parole dans n\'importe quelle langue devient du texte anglais, y compris dans les sous-titres en direct. Ignoré par les autres modèles.</string>
+    <string name="btn_models">Gérer les modèles vocaux</string>
+
+    <string name="section_appearance">Apparence</string>
+    <string name="theme_system">Valeur système</string>
+    <string name="theme_light">Clair</string>
+    <string name="theme_dark">Sombre</string>
+
+    <string name="section_voice">Saisie vocale</string>
+    <string name="voice_status_ready">Prêt. Dans n\'importe quelle app, touchez le micro d\'un clavier pris en charge et votre parole est saisie dans le champ de texte.</string>
+    <string name="voice_status_need_mic">L\'accès au microphone est nécessaire pour la saisie vocale.</string>
+    <string name="voice_status_almost">Presque terminé. Quand vous touchez le micro de votre clavier, choisissez « Offline Voice Input » puis « Toujours ». Touchez « Essayer la saisie vocale » ci-dessous pour le configurer maintenant.</string>
+    <string name="btn_voice_try">Essayer la saisie vocale</string>
+    <string name="btn_voice_grant">Autoriser le microphone</string>
+    <string name="btn_voice_help">Aide à la configuration</string>
+
+    <string name="voice_test_ok">Ça fonctionne ! Entendu : %1$s</string>
+    <string name="voice_test_empty">Ça fonctionne, mais aucune parole n\'a été détectée.</string>
+    <string name="voice_test_failed">Impossible de démarrer la saisie vocale sur cet appareil.</string>
+
+    <string name="voice_help_title">Configuration de la saisie vocale</string>
+    <string name="voice_help_body">Comment l\'utiliser\n• Ouvrez n\'importe quelle app et touchez le micro d\'un clavier/d\'une app pris en charge. Un petit panneau apparaît, vous parlez, touchez pour arrêter, et le texte est inséré. (Activez « Arrêt automatique après un silence » dans les paramètres pour qu\'il s\'arrête tout seul.)\n\nQuels claviers ouvrent le panneau vocal\n• Microsoft SwiftKey (non open source) et la recherche vocale des sites web ouvrent le panneau directement.\n• AnySoftKeyboard est la voie open source vers le panneau : sa touche micro l\'ouvre tant qu\'aucun clavier vocal n\'est activé sur votre système.\n\nAutres claviers open source\n• HeliBoard, FlorisBoard, OpenBoard, Fossify Keyboard et Unexpected Keyboard n\'ouvrent pas le panneau : leur touche micro bascule vers le clavier « Offline Voice Input ». Activez-le une fois (voir « Alternative : clavier vocal »), parlez, puis revenez avec sa touche de changement de clavier. FUTO Keyboard embarque sa propre saisie vocale.\n• Gboard n\'utilise que la saisie vocale de Google et ne peut pas du tout utiliser cette app.\n\nSi la saisie vocale de SwiftKey s\'ouvre à la place\n• Paramètres → Saisie riche → désactivez « Saisie vocale multimodale ».\n• Touchez ensuite à nouveau le micro et choisissez « Offline Voice Input ».\n\nSi Android demande quelle app utiliser\n• Choisissez « Offline Voice Input » et touchez « Toujours ».\n\nSi une autre app s\'ouvre toujours\n• Ouvrez Paramètres → Applications → cette app → « Ouvrir par défaut » → Effacer les valeurs par défaut, puis réessayez.</string>
+</resources>

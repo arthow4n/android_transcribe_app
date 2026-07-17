@@ -24,13 +24,12 @@ release.keystore
 
 # Rust build output
 /target/
-/transcribe-rs/target/
 
 # Native libs (built by cargo-ndk at build time)
 app/src/main/jniLibs/
 
 # Model files (downloaded at build time)
-*.onnx
+*.gguf
 
 # Build outputs
 *.apk

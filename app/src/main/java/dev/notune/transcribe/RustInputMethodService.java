@@ -30,7 +30,6 @@ public class RustInputMethodService extends InputMethodService {
     static {
         try {
             System.loadLibrary("c++_shared");
-            System.loadLibrary("onnxruntime");
             System.loadLibrary("android_transcribe_app");
         } catch (UnsatisfiedLinkError e) {
             Log.e(TAG, "Failed to load native libraries", e);
@@ -68,6 +67,13 @@ public class RustInputMethodService extends InputMethodService {
     // non-null no-op connection when nothing is focused, so commitText would be
     // silently dropped.
     private boolean inputActive = false;
+    // Whether the keyboard window is currently on screen. Some frameworks
+    // (notably OEM builds) call onWindowShown again for events that don't
+    // follow an onWindowHidden, e.g. tapping the text area to move the
+    // cursor while the keyboard stays visible. Auto-record must only fire on
+    // a genuine hidden -> shown transition, or a cursor tap starts a
+    // recording the user never asked for.
+    private boolean windowVisible = false;
     // Transcribed text waiting to be committed because no editor was focused
     // when transcription finished. This happens on long transcribes where the
     // target field (e.g. a web field in Firefox/Gemini) drops focus while we
@@ -264,10 +270,17 @@ public class RustInputMethodService extends InputMethodService {
     @Override
     public void onWindowShown() {
         super.onWindowShown();
+        boolean wasVisible = windowVisible;
+        windowVisible = true;
         if (isRecording) {
             // A background recording is still running (record-in-background
             // setting): restore the recording UI.
             updateRecordButtonUI(true);
+            return;
+        }
+        if (wasVisible) {
+            // Not a real hidden -> shown transition (e.g. a cursor tap in the
+            // text area); never auto-start a recording from here.
             return;
         }
         if (new File(getFilesDir(), "auto_record").exists()) {
@@ -286,6 +299,7 @@ public class RustInputMethodService extends InputMethodService {
     @Override
     public void onWindowHidden() {
         super.onWindowHidden();
+        windowVisible = false;
         if (isRecording) {
             if (isStopOnHideEnabled()) {
                 // Opt-in behavior: discard the recording when the keyboard hides.

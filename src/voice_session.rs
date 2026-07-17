@@ -5,7 +5,6 @@ use std::time::{Duration, Instant};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use jni::objects::{GlobalRef, JObject};
 use jni::JNIEnv;
-use transcribe_rs::TranscriptionEngine;
 
 use crate::engine;
 
@@ -272,15 +271,12 @@ pub fn stop_recording(mut env: JNIEnv, state: &mut VoiceSessionState) {
         }
 
         if let Some(eng_arc) = engine::get_engine() {
-            let res = {
-                let mut eng = eng_arc.lock().unwrap();
-                eng.transcribe_samples(buffer, None)
-            };
+            let res = engine::transcribe_shared(&eng_arc, buffer);
 
             match res {
-                Ok(r) => {
+                Ok(text) => {
                     notify_status(&mut env, obj, "Ready");
-                    notify_text(&mut env, obj, &r.text);
+                    notify_text(&mut env, obj, &text);
                 }
                 Err(e) => notify_status(&mut env, obj, &format!("Error: {}", e)),
             }

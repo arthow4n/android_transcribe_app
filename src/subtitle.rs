@@ -18,7 +18,6 @@ use jni::JNIEnv;
 use once_cell::sync::Lazy;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
-use transcribe_rs::TranscriptionEngine;
 
 use crate::engine;
 
@@ -170,10 +169,7 @@ pub unsafe extern "system" fn Java_dev_notune_transcribe_LiveSubtitleService_ini
             } else if let Some(engine_arc) = engine::get_engine() {
                 let audio_secs = job.samples.len() as f64 / SAMPLE_RATE as f64;
                 let started = std::time::Instant::now();
-                let res = {
-                    let mut eng = engine_arc.lock().unwrap();
-                    eng.transcribe_samples(job.samples, None)
-                };
+                let res = engine::transcribe_shared(&engine_arc, job.samples);
                 let elapsed = started.elapsed().as_secs_f64();
                 log::info!(
                     "Subtitle {} job: {:.1}s audio in {:.2}s (lag {:.1}s)",
@@ -191,7 +187,7 @@ pub unsafe extern "system" fn Java_dev_notune_transcribe_LiveSubtitleService_ini
                 rtf_milli.store(ema, Ordering::SeqCst);
 
                 if let Ok(r) = res {
-                    let text = r.text.trim();
+                    let text = r.trim();
                     if !text.is_empty() && gap_pending {
                         // Mark the dropped stretch so the transcript doesn't
                         // silently glue unrelated sentences together.
@@ -289,7 +285,7 @@ pub unsafe extern "system" fn Java_dev_notune_transcribe_LiveSubtitleService_pus
             // few seconds and carry the remainder into the next segment so no
             // word is chopped in half.
             let from = samples.len().saturating_sub(3 * SAMPLE_RATE);
-            let split = find_quietest_split(&samples, from, samples.len());
+            let split = crate::audio::find_quietest_split(&samples, from, samples.len());
             state.segment = samples.split_off(split);
         }
         state.silence_run = 0;
@@ -332,25 +328,4 @@ fn partial_affordable(state: &LiveSubtitleState) -> bool {
     let rtf = state.rtf_milli.load(Ordering::SeqCst) as f32 / 1000.0;
     let segment_secs = state.segment.len() as f32 / SAMPLE_RATE as f32;
     segment_secs * rtf <= MAX_PARTIAL_COST_SECS
-}
-
-/// Centre of the quietest 100 ms window in `samples[from..to]`; used to pick a
-/// natural split point when a segment must be cut mid-speech.
-fn find_quietest_split(samples: &[f32], from: usize, to: usize) -> usize {
-    const WIN: usize = 1_600; // 100 ms
-    if from + WIN > to {
-        return to;
-    }
-    let mut best_pos = to;
-    let mut best_energy = f32::MAX;
-    let mut i = from;
-    while i + WIN <= to {
-        let energy: f32 = samples[i..i + WIN].iter().map(|&x| x * x).sum();
-        if energy < best_energy {
-            best_energy = energy;
-            best_pos = i + WIN / 2;
-        }
-        i += WIN / 2;
-    }
-    best_pos
 }

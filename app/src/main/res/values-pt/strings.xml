@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="welcome_title">Entrada de voz e legendas</string>
+    <string name="welcome_subtitle">Totalmente offline, privado e rápido.</string>
+
+    <string name="section_ime">Alternativa: teclado de voz</string>
+    <string name="desc_ime">Prefere um teclado dedicado? Ative o teclado Offline Voice Input e alterne para ele no seletor de teclados quando quiser a entrada de voz como teclado próprio.</string>
+    <string name="btn_ime_settings">Abrir configurações do teclado</string>
+
+    <string name="section_subs">Legendas ao vivo</string>
+    <string name="desc_subs">Exiba legendas para qualquer áudio reproduzido no seu dispositivo. Após iniciar, escolha \'Compartilhar a tela inteira\' para melhores resultados.</string>
+    <string name="btn_subs_start">Iniciar legendas ao vivo</string>
+    <string name="btn_subs_advanced">Pular a caixa de permissão (avançado)</string>
+    <string name="subs_advanced_title">Pular a caixa de captura de tela</string>
+    <string name="subs_advanced_body">O Android normalmente mostra uma caixa «Iniciar gravação ou transmissão?» sempre que as legendas iniciam. Usuários avançados podem aprová-la uma vez via adb; depois as legendas iniciam instantaneamente:\n\n1. Ative as opções do desenvolvedor e a depuração USB, e conecte o dispositivo a um computador com adb.\n\n2. Execute:\n\n%1$s\n\nPronto: a configuração sobrevive a reinicializações, e a depuração USB pode ser desativada depois. O app em si não muda: o Android apenas concede a caixa automaticamente.\n\nPara desfazer:\n\n%2$s\n\nObservação: isto depende de um comportamento não documentado do Android (o app-op PROJECT_MEDIA). Em alguns dispositivos (por exemplo, certas versões Xiaomi/Samsung) pode não funcionar ou ser redefinido pelo sistema; a caixa normal é sempre o recurso alternativo.</string>
+    <string name="subs_advanced_copy">Copiar comando</string>
+    <string name="subs_advanced_copied">Comando copiado</string>
+
+    <string name="status_label">Status:</string>
+    <string name="status_checking">Verificando dados…</string>
+    <string name="status_ready">Pronto</string>
+    <string name="status_error">Erro</string>
+
+    <string name="section_settings">Configurações</string>
+    <string name="setting_auto_record">Iniciar gravação automaticamente</string>
+    <string name="setting_auto_record_desc">Começar a gravar automaticamente quando o teclado abre</string>
+
+    <string name="setting_select_transcription">Selecionar transcrição</string>
+    <string name="setting_select_transcription_desc">Destacar o texto transcrito para que possa ser apagado com um único retrocesso</string>
+
+    <string name="setting_pause_audio">Pausar áudio</string>
+    <string name="setting_pause_audio_desc">Pausar o áudio durante a gravação</string>
+
+    <string name="setting_record_background">Gravar em segundo plano</string>
+    <string name="setting_record_background_desc">Continuar gravando quando o teclado de voz está oculto; o texto é inserido ao voltar</string>
+
+    <string name="setting_auto_stop">Parada automática após silêncio</string>
+    <string name="setting_auto_stop_desc">Fechar a janela de entrada de voz automaticamente ~2 segundos após você parar de falar</string>
+
+    <string name="setting_subtitle_lines">Comprimento das legendas</string>
+    <string name="setting_subtitle_lines_desc">Quantas linhas as legendas ao vivo mostram; o texto mais antigo rola para fora</string>
+    <string name="subtitle_lines_2">2 linhas</string>
+    <string name="subtitle_lines_4">4 linhas</string>
+    <string name="subtitle_lines_all">Todas</string>
+
+    <string name="models_title">Modelos de voz</string>
+    <string name="models_section">Modelo de voz</string>
+    <string name="models_active_section">Modelo ativo</string>
+    <string name="models_builtin_sub">Incluído no app · 25 idiomas europeus</string>
+    <string name="model_desc_parakeet110m">Somente inglês, pequeno e rápido</string>
+    <string name="model_desc_sensevoice">Inglês, chinês, cantonês, japonês, coreano; rápido</string>
+    <string name="model_desc_whisper_small">99 idiomas, compacto; traduz para o inglês</string>
+    <string name="model_desc_nemotron">40 idiomas incl. chinês, japonês, coreano, árabe, híndi; com pontuação</string>
+    <string name="model_desc_parakeet_v3_q8">Como o modelo integrado, maior precisão</string>
+    <string name="model_desc_whisper_turbo">99 idiomas, o mais preciso desta lista; não traduz</string>
+    <string name="model_desc_browse">Ver todos os modelos transcribe.cpp</string>
+    <string name="models_desc">O modelo integrado funciona imediatamente. Você também pode importar qualquer modelo GGUF do transcribe.cpp que tenha baixado. O app permanece totalmente offline; os downloads acontecem no seu navegador. O teclado de voz aplica uma troca de modelo após reiniciar.</string>
+    <string name="models_loading">Carregando modelo…</string>
+    <string name="models_import">Importar arquivo de modelo (.gguf)</string>
+    <string name="models_importing">Importando %1$s…</string>
+    <string name="models_import_done">%1$s importado</string>
+    <string name="models_import_failed">Falha na importação: não foi possível copiar o arquivo.</string>
+    <string name="models_import_no_space">Armazenamento livre insuficiente para importar este modelo.</string>
+    <string name="models_import_bad_title">Não é um modelo GGUF</string>
+    <string name="models_import_bad_body">Selecione um arquivo de modelo .gguf para o transcribe.cpp. Toque em «Onde obter modelos» para os links de download.</string>
+    <string name="models_links">Onde obter modelos</string>
+    <string name="models_links_title">Downloads de modelos (abrir no navegador)</string>
+    <string name="models_no_browser">Nenhum navegador encontrado para abrir o link.</string>
+    <string name="models_delete">Excluir modelo</string>
+    <string name="models_delete_confirm">Excluir %1$s do armazenamento do app?</string>
+    <string name="models_language_section">Idioma</string>
+    <string name="models_language_desc">O idioma passado ao modelo. «Automático» deixa o modelo decidir. Se a fala for transcrita no idioma ou alfabeto errado, escolha seu idioma explicitamente. Idiomas não suportados pelo modelo ativo são ignorados.</string>
+    <string name="models_language_auto">Automático</string>
+    <string name="models_language_saved">Idioma salvo</string>
+    <string name="models_translate">Traduzir para inglês</string>
+    <string name="models_translate_desc">Para modelos compatíveis (p. ex. Whisper): a fala em qualquer idioma vira texto em inglês, inclusive nas legendas ao vivo. Os demais modelos ignoram.</string>
+    <string name="btn_models">Gerenciar modelos de voz</string>
+
+    <string name="section_appearance">Aparência</string>
+    <string name="theme_system">Padrão do sistema</string>
+    <string name="theme_light">Claro</string>
+    <string name="theme_dark">Escuro</string>
+
+    <string name="section_voice">Entrada de voz</string>
+    <string name="voice_status_ready">Pronto. Em qualquer app, toque no microfone de um teclado compatível e sua fala é digitada no campo de texto.</string>
+    <string name="voice_status_need_mic">É necessário acesso ao microfone para a entrada de voz.</string>
+    <string name="voice_status_almost">Quase lá. Ao tocar no microfone do seu teclado, escolha «Offline Voice Input» e depois «Sempre». Toque em «Testar entrada de voz» abaixo para configurar agora.</string>
+    <string name="btn_voice_try">Testar entrada de voz</string>
+    <string name="btn_voice_grant">Conceder acesso ao microfone</string>
+    <string name="btn_voice_help">Ajuda de configuração</string>
+
+    <string name="voice_test_ok">Funciona! Ouvido: %1$s</string>
+    <string name="voice_test_empty">Funciona, mas nenhuma fala foi detectada.</string>
+    <string name="voice_test_failed">Não foi possível iniciar a entrada de voz neste dispositivo.</string>
+
+    <string name="voice_help_title">Configuração da entrada de voz</string>
+    <string name="voice_help_body">Como usar\n• Abra qualquer app e toque no microfone de um teclado/app compatível. Um pequeno painel aparece, você fala, toca para parar, e o texto é inserido. (Ative «Parada automática após silêncio» nas configurações para que pare sozinho.)\n\nQuais teclados abrem o painel de voz\n• O Microsoft SwiftKey (não é de código aberto) e a busca por voz de sites abrem o painel diretamente.\n• O AnySoftKeyboard é o caminho de código aberto para o painel: sua tecla de microfone o abre desde que nenhum teclado de voz esteja ativado no sistema.\n\nOutros teclados de código aberto\n• HeliBoard, FlorisBoard, OpenBoard, Fossify Keyboard e Unexpected Keyboard não abrem o painel: a tecla de microfone deles alterna para o teclado «Offline Voice Input». Ative-o uma vez (veja «Alternativa: teclado de voz»), fale lá e volte com a tecla de troca de teclado. O FUTO Keyboard traz sua própria entrada de voz.\n• O Gboard só usa a entrada de voz do Google e não pode usar este app de forma alguma.\n\nSe a entrada de voz do próprio SwiftKey abrir\n• Configurações → Entrada avançada → desative «Entrada de voz multimodal».\n• Depois toque no microfone novamente e escolha «Offline Voice Input».\n\nSe o Android perguntar qual app usar\n• Escolha «Offline Voice Input» e toque em «Sempre».\n\nSe outro app sempre abrir\n• Abra Configurações → Apps → esse app → «Abrir por padrão» → Limpar padrões, e tente novamente.</string>
+</resources>

@@ -13,9 +13,6 @@ pub unsafe extern "system" fn Java_dev_notune_transcribe_MainActivity_initNative
         android_logger::Config::default().with_max_level(log::LevelFilter::Info),
     );
 
-    // Initialize ORT if not already
-    let _ = ort::init().commit();
-
     let vm = env.get_java_vm().expect("Failed to get JavaVM");
     let vm_arc = Arc::new(vm);
     let activity_ref = env
