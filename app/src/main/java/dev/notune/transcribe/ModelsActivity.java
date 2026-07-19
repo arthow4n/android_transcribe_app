@@ -127,6 +127,7 @@ public class ModelsActivity extends AppCompatActivity {
         findViewById(R.id.btn_model_links).setOnClickListener(v -> showLinksDialog());
 
         setupLanguageSpinner();
+        setupThreadsSpinner();
 
         com.google.android.material.materialswitch.MaterialSwitch translateSwitch =
                 findViewById(R.id.switch_translate);
@@ -184,6 +185,50 @@ public class ModelsActivity extends AppCompatActivity {
                 if (tag.equals(readConfig("model_language"))) return;
                 writeConfig("model_language", tag);
                 snackbar(getString(R.string.models_language_saved));
+                statusText.setText(getString(R.string.models_loading));
+                reloadModelNative(ModelsActivity.this);
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+            }
+        });
+    }
+
+    // --- Inference threads --------------------------------------------------
+
+    /**
+     * CPU thread count for inference, stored in {@code model_threads}. Empty =
+     * automatic (the engine derives it from the CPU topology). Offered values
+     * cover the realistic range on phones; the engine treats anything invalid
+     * as automatic.
+     */
+    private void setupThreadsSpinner() {
+        Spinner spinner = findViewById(R.id.spinner_threads);
+        String stored = readConfig("model_threads");
+
+        List<String> values = new ArrayList<>(
+                Arrays.asList("", "1", "2", "3", "4", "5", "6", "8"));
+        if (!stored.isEmpty() && !values.contains(stored)) {
+            values.add(stored);
+        }
+
+        List<String> labels = new ArrayList<>(values.size());
+        for (String v : values) {
+            labels.add(v.isEmpty() ? getString(R.string.models_threads_auto) : v);
+        }
+
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                this, android.R.layout.simple_spinner_item, labels);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinner.setAdapter(adapter);
+        spinner.setSelection(Math.max(0, values.indexOf(stored)), false);
+        spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                String value = values.get(position);
+                if (value.equals(readConfig("model_threads"))) return;
+                writeConfig("model_threads", value);
                 statusText.setText(getString(R.string.models_loading));
                 reloadModelNative(ModelsActivity.this);
             }

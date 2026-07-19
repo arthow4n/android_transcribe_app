@@ -7,10 +7,14 @@
 //! hits a hard cap — the segment is *finalized*: transcribed once more and
 //! committed, then the buffer starts fresh.
 //!
-//! Two things keep latency low and bounded:
+//! Three things keep latency low and bounded:
 //! - Partial jobs are only submitted while the worker is idle (latest-wins),
 //!   so a slow device can never build up a queue and drift behind real time.
 //! - Final jobs are always queued (FIFO), so committed text is never lost.
+//! - When finals queue up faster than they are processed, the worker folds
+//!   them into one batched run: fixed-window models (Whisper) cost nearly
+//!   the same per run regardless of audio length, so batching is what lets
+//!   a slow device catch up instead of dropping text.
 
 use crossbeam_channel;
 use jni::objects::{JClass, JObject};
@@ -35,8 +39,17 @@ const MAX_SEGMENT_SAMPLES: usize = 6 * SAMPLE_RATE;
 /// A queued *final* older than this is dropped (a "…" gap is shown instead).
 /// This bounds the audio-to-caption offset on devices that can't transcribe
 /// in real time — without it the finals queue grows and the captions drift
-/// further behind the longer the audio plays.
+/// further behind the longer the audio plays. Merging (below) makes this a
+/// last resort: it only fires when even batched runs can't keep up.
 const MAX_FINAL_LAG_SAMPLES: u64 = (8 * SAMPLE_RATE) as u64;
+/// Cap on one merged final run. Models with a fixed input window (Whisper
+/// pads everything to 30 s) cost nearly the same per run no matter how short
+/// the audio is, so transcribing queued finals one by one wastes most of the
+/// run on padding. Folding everything that is already queued into one run
+/// amortizes that fixed cost — this is what lets a device that can't keep up
+/// segment-by-segment still catch up without dropping text. Kept under the
+/// 30 s window so a merged run is still a single model pass.
+const MAX_MERGED_SAMPLES: usize = 25 * SAMPLE_RATE;
 /// A queued *partial* older than this is stale; skip it (a fresh one follows).
 const MAX_PARTIAL_LAG_SAMPLES: u64 = (3 * SAMPLE_RATE) as u64;
 /// A partial is only submitted when its predicted transcription time is at
@@ -147,8 +160,38 @@ pub unsafe extern "system" fn Java_dev_notune_transcribe_LiveSubtitleService_ini
         };
 
         while let Ok(job) = rx.recv() {
+            let mut job = job;
+            // Fold queued finals into this run (see MAX_MERGED_SAMPLES). A
+            // queued partial is dropped instead: it re-transcribes audio a
+            // queued final already covers, and a fresh one follows anyway.
+            if job.is_final {
+                let mut merged = 0usize;
+                while job.samples.len() < MAX_MERGED_SAMPLES {
+                    match rx.try_recv() {
+                        Ok(next) => {
+                            if next.is_final {
+                                job.samples.extend_from_slice(&next.samples);
+                                job.end_sample = next.end_sample;
+                                pending_finals.fetch_sub(1, Ordering::SeqCst);
+                                merged += 1;
+                            }
+                        }
+                        Err(_) => break,
+                    }
+                }
+                if merged > 0 {
+                    log::info!(
+                        "Merged {} queued finals into one {:.1}s run",
+                        merged + 1,
+                        job.samples.len() as f64 / SAMPLE_RATE as f64
+                    );
+                }
+            }
+
             // Stale-job policy: if transcription can't keep up with the
             // audio, skip old work instead of drifting ever further behind.
+            // A merged final ends at the newest queued audio, so merging
+            // usually keeps the lag below the drop threshold by itself.
             let lag = total_pushed
                 .load(Ordering::SeqCst)
                 .saturating_sub(job.end_sample);

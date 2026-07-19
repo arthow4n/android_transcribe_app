@@ -75,6 +75,16 @@
     <string name="models_translate">Переводить на английский</string>
     <string name="models_translate_desc">Для моделей с поддержкой перевода (например, Whisper): речь на любом языке становится английским текстом, в том числе в субтитрах. Остальные модели игнорируют эту настройку.</string>
     <string name="btn_models">Управление речевыми моделями</string>
+    <string name="models_threads_section">Потоки ЦП</string>
+    <string name="models_threads_desc">Потоки, используемые для распознавания. «Автоматически» подбирает значение под процессор этого устройства. Если распознавание медленное, попробуйте другие значения; больше потоков не всегда быстрее.</string>
+    <string name="models_threads_auto">Автоматически</string>
+
+    <string name="section_benchmark">Тест скорости</string>
+    <string name="desc_benchmark">Измеряет скорость распознавания активной модели на этом устройстве по встроенной тестовой записи на английском (11 с).</string>
+    <string name="btn_benchmark">Запустить тест</string>
+    <string name="bench_running">Идёт тест…</string>
+    <string name="bench_result">%1$s с аудио за %2$s с: %3$s× реального времени</string>
+    <string name="bench_error">Тест не выполнен: %1$s</string>
 
     <string name="section_appearance">Оформление</string>
     <string name="theme_system">Как в системе</string>

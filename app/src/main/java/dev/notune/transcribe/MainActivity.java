@@ -48,6 +48,8 @@ public class MainActivity extends AppCompatActivity {
     private Button voiceGrantButton;
     private Button voiceTryButton;
     private Button startSubsButton;
+    private Button benchButton;
+    private TextView benchResultText;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -81,6 +83,10 @@ public class MainActivity extends AppCompatActivity {
 
         findViewById(R.id.btn_models).setOnClickListener(v ->
                 startActivity(new Intent(this, ModelsActivity.class)));
+
+        benchButton = findViewById(R.id.btn_benchmark);
+        benchResultText = findViewById(R.id.text_bench_result);
+        benchButton.setOnClickListener(v -> runBenchmark());
 
         // Settings stored as marker files in filesDir (readable from the :ime
         // process and native code without a content provider).
@@ -307,6 +313,90 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // --- Benchmark ----------------------------------------------------------
+
+    /**
+     * Transcribes the bundled test clip through the active model and shows the
+     * speed as a real-time factor. The clip is a fixed English recording so
+     * results are comparable across models and devices; the run uses the
+     * current model settings (language hint, translate).
+     */
+    private void runBenchmark() {
+        benchButton.setEnabled(false);
+        benchResultText.setVisibility(View.VISIBLE);
+        benchResultText.setText(R.string.bench_running);
+
+        new Thread(() -> {
+            float[] samples;
+            try {
+                samples = readWavAsset("bench.wav");
+            } catch (IOException e) {
+                Log.e(TAG, "Failed to read benchmark clip", e);
+                runOnUiThread(() -> {
+                    benchResultText.setText(getString(R.string.bench_error, e.getMessage()));
+                    benchButton.setEnabled(true);
+                });
+                return;
+            }
+            benchmarkNative(this, samples, samples.length);
+        }, "benchmark-load").start();
+    }
+
+    // Called from Rust when the benchmark run finishes.
+    public void onBenchmarkResult(float audioSecs, float computeSecs, String error) {
+        runOnUiThread(() -> {
+            benchButton.setEnabled(true);
+            benchResultText.setVisibility(View.VISIBLE);
+            if (error != null && !error.isEmpty()) {
+                benchResultText.setText(getString(R.string.bench_error, error));
+            } else {
+                benchResultText.setText(getString(R.string.bench_result,
+                        String.format(java.util.Locale.getDefault(), "%.1f", audioSecs),
+                        String.format(java.util.Locale.getDefault(), "%.1f", computeSecs),
+                        String.format(java.util.Locale.getDefault(), "%.1f",
+                                computeSecs > 0 ? audioSecs / computeSecs : 0)));
+            }
+        });
+    }
+
+    /**
+     * Reads a 16 kHz mono 16-bit PCM WAV from assets into float samples. Only
+     * handles the format the bundled clip is stored in; no general WAV support.
+     */
+    private float[] readWavAsset(String name) throws IOException {
+        byte[] bytes;
+        try (java.io.InputStream in = getAssets().open(name);
+             java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
+            byte[] buf = new byte[64 * 1024];
+            int read;
+            while ((read = in.read(buf)) != -1) {
+                out.write(buf, 0, read);
+            }
+            bytes = out.toByteArray();
+        }
+
+        // Find the "data" chunk instead of assuming a 44-byte header.
+        int offset = 12;
+        while (offset + 8 <= bytes.length) {
+            int chunkSize = (bytes[offset + 4] & 0xff) | ((bytes[offset + 5] & 0xff) << 8)
+                    | ((bytes[offset + 6] & 0xff) << 16) | ((bytes[offset + 7] & 0xff) << 24);
+            if (bytes[offset] == 'd' && bytes[offset + 1] == 'a'
+                    && bytes[offset + 2] == 't' && bytes[offset + 3] == 'a') {
+                int start = offset + 8;
+                int count = Math.min(chunkSize, bytes.length - start) / 2;
+                float[] samples = new float[count];
+                for (int i = 0; i < count; i++) {
+                    int lo = bytes[start + 2 * i] & 0xff;
+                    int hi = bytes[start + 2 * i + 1];
+                    samples[i] = ((hi << 8) | lo) / 32768.0f;
+                }
+                return samples;
+            }
+            offset += 8 + chunkSize + (chunkSize & 1);
+        }
+        throw new IOException("no data chunk in " + name);
+    }
+
     // Called from Rust
     public void onStatusUpdate(String status) {
         runOnUiThread(() -> {
@@ -319,4 +409,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private native void initNative(MainActivity activity);
+
+    private native void benchmarkNative(MainActivity activity, float[] samples, int length);
 }

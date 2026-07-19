@@ -75,6 +75,16 @@
     <string name="models_translate">Traduire en anglais</string>
     <string name="models_translate_desc">Pour les modèles qui le prennent en charge (p. ex. Whisper) : la parole dans n\'importe quelle langue devient du texte anglais, y compris dans les sous-titres en direct. Ignoré par les autres modèles.</string>
     <string name="btn_models">Gérer les modèles vocaux</string>
+    <string name="models_threads_section">Threads CPU</string>
+    <string name="models_threads_desc">Threads utilisés pour la transcription. « Automatique » choisit une valeur adaptée au processeur de cet appareil. Si la transcription est lente, essayez d\'autres valeurs ; plus de threads n\'est pas toujours plus rapide.</string>
+    <string name="models_threads_auto">Automatique</string>
+
+    <string name="section_benchmark">Test de performance</string>
+    <string name="desc_benchmark">Mesure la vitesse de transcription du modèle actif sur cet appareil à l\'aide d\'un enregistrement de test en anglais intégré (11 s).</string>
+    <string name="btn_benchmark">Lancer le test</string>
+    <string name="bench_running">Test en cours…</string>
+    <string name="bench_result">%1$s s d\'audio en %2$s s : %3$s× temps réel</string>
+    <string name="bench_error">Échec du test : %1$s</string>
 
     <string name="section_appearance">Apparence</string>
     <string name="theme_system">Valeur système</string>

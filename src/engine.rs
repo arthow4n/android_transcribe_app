@@ -44,6 +44,9 @@ pub struct Engine {
     session: transcribe_cpp::Session,
     language: Option<String>,
     task: transcribe_cpp::Task,
+    /// Family-specific decode options attached to every run; `None` for
+    /// models that don't take the whisper run extension.
+    run_ext: Option<transcribe_cpp::RunExtension>,
     /// Status reported once loading succeeded; carries a warning when the
     /// translate setting can't do what the user expects with this model.
     ready_status: &'static str,
@@ -83,7 +86,32 @@ impl Engine {
         } else {
             "Ready"
         };
-        log::info!("engine: {} threads, task {:?}", threads, task);
+        // Whisper's stock recipe re-decodes a chunk at up to five higher
+        // temperatures when its quality gates fail, so one noisy chunk can
+        // cost several full decodes. For an interactive app a single greedy
+        // pass is the better trade: worst case is a worse line of text, not
+        // a multiplied wait. temperature_inc = 0 turns the retry ladder off;
+        // models that don't take the whisper run extension are unaffected.
+        let run_ext = if model.accepts_ext(
+            transcribe_cpp::ExtSlot::Run,
+            transcribe_cpp::sys::TRANSCRIBE_EXT_KIND_WHISPER_RUN,
+        ) {
+            Some(transcribe_cpp::RunExtension::Whisper(
+                transcribe_cpp::WhisperRunOptions {
+                    temperature_inc: Some(0.0),
+                    ..Default::default()
+                },
+            ))
+        } else {
+            None
+        };
+
+        log::info!(
+            "engine: {} threads, task {:?}, single-pass decode: {}",
+            threads,
+            task,
+            run_ext.is_some()
+        );
         let options = transcribe_cpp::SessionOptions {
             n_threads: threads,
             ..Default::default()
@@ -93,6 +121,7 @@ impl Engine {
             session,
             language,
             task,
+            run_ext,
             ready_status,
         })
     }
@@ -139,6 +168,7 @@ impl Engine {
             let opts = transcribe_cpp::RunOptions {
                 language: self.language.clone(),
                 task: self.task,
+                family: self.run_ext.clone(),
                 ..Default::default()
             };
             match self.session.run(samples, &opts) {
@@ -325,16 +355,20 @@ pub fn ensure_loaded_from_thread(
     }
 }
 
-/// Inference thread count: the number of performance cores.
+/// Inference thread count: the number of performance cores, capped at 4.
 ///
-/// Phone SoCs are heterogeneous — fast cores paired with slow efficiency
+/// Phone SoCs are heterogeneous: fast cores paired with slow efficiency
 /// cores. ggml synchronizes all threads after each operation, so a thread
 /// on a slow core stalls the whole pool, and using every core is slower
 /// than using only the fast ones. Cores are classified by their maximum
 /// frequency from sysfs: within 70% of the fastest core counts as fast.
-/// On homogeneous CPUs this is simply all cores. If sysfs is unreadable,
-/// falls back to a conservative 4. The `model_threads` config file
-/// overrides the heuristic.
+/// The count is capped at 4 because grabbing every fast core leaves none
+/// for the rest of the system (audio pipeline, the app playing the sound),
+/// and any preempted worker stalls the pool at the next op barrier; past
+/// 4 threads the matmuls are memory-bound on phone-class SoCs anyway, and
+/// more threads mainly build up heat. If sysfs is unreadable, falls back
+/// to a conservative 4. The `model_threads` config file (user-settable in
+/// the Models screen) overrides the heuristic.
 fn performance_core_count() -> i32 {
     let mut freqs: Vec<u64> = Vec::new();
     for i in 0..64 {
@@ -350,12 +384,14 @@ fn performance_core_count() -> i32 {
     match freqs.iter().max() {
         Some(&max) if max > 0 => {
             let fast = freqs.iter().filter(|&&f| f * 10 >= max * 7).count();
+            let threads = fast.clamp(1, 4);
             log::info!(
-                "cpu clusters {:?} kHz -> {} performance cores",
+                "cpu clusters {:?} kHz -> {} performance cores -> {} threads",
                 freqs,
-                fast
+                fast,
+                threads
             );
-            fast.max(1) as i32
+            threads as i32
         }
         _ => std::thread::available_parallelism()
             .map(|n| n.get())
