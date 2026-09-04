@@ -154,7 +154,7 @@ public class ModelsActivity extends AppCompatActivity {
             "et-EE", "fi-FI", "fr-FR", "de-DE", "el-GR", "hu-HU", "it-IT",
             "lv-LV", "lt-LT", "mt-MT", "pl-PL", "pt-PT", "pt-BR", "ro-RO",
             "ru-RU", "sk-SK", "sl-SI", "es-ES", "sv-SE", "uk-UA",
-            "ar-SA", "zh-CN", "hi-IN", "ja-JP", "ko-KR", "tr-TR",
+            "ar-SA", "zh-CN", "zh-TW", "hi-IN", "ja-JP", "ko-KR", "tr-TR",
     };
 
     private void setupLanguageSpinner() {
