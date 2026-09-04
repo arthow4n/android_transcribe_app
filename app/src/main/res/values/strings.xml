@@ -77,6 +77,12 @@
     <string name="models_language_desc">The language passed to the model. “Automatic” lets the model decide. If speech is transcribed in the wrong language or script, pick your language explicitly. Languages the active model doesn\'t support are ignored.</string>
     <string name="models_language_auto">Automatic</string>
     <string name="models_language_saved">Language saved</string>
+    <string name="models_chinese_output">Chinese output</string>
+    <string name="models_chinese_output_desc">Optionally convert recognized Chinese text offline. This is separate from the recognition language.</string>
+    <string name="models_chinese_output_none">No conversion</string>
+    <string name="models_chinese_output_simplified">Simplified Chinese</string>
+    <string name="models_chinese_output_traditional_tw">Traditional Chinese (Taiwan)</string>
+    <string name="models_chinese_output_saved">Chinese output saved</string>
     <string name="models_translate">Translate to English</string>
     <string name="models_translate_desc">For models that support it (e.g. Whisper): speech in any language becomes English text, including in live subtitles. Ignored by other models.</string>
     <string name="btn_models">Manage speech models</string>

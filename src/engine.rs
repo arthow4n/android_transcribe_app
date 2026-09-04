@@ -15,6 +15,7 @@ use jni::objects::{GlobalRef, JObject};
 use jni::JNIEnv;
 
 use crate::assets;
+use crate::chinese::{ChineseConverter, ChineseOutput};
 
 /// File in filesDir naming the imported GGUF (a file under `models/`) to use
 /// instead of the bundled model. Absent or empty = bundled model.
@@ -22,6 +23,9 @@ const ACTIVE_MODEL_FILE: &str = "active_model";
 /// File in filesDir with an optional language hint — a locale like `en-US`
 /// or `auto`. Absent or empty = let the model autodetect.
 const MODEL_LANGUAGE_FILE: &str = "model_language";
+/// Optional output normalization: `simplified` or `traditional_tw`. Absent or
+/// empty preserves the model's transcription exactly.
+const CHINESE_OUTPUT_FILE: &str = "chinese_output";
 /// Marker file in filesDir: when present, models that support translation
 /// (e.g. Whisper) translate speech to English instead of transcribing it.
 /// Ignored by models without translation support.
@@ -47,6 +51,7 @@ pub struct Engine {
     /// Family-specific decode options attached to every run; `None` for
     /// models that don't take the whisper run extension.
     run_ext: Option<transcribe_cpp::RunExtension>,
+    chinese_converter: ChineseConverter,
     /// Status reported once loading succeeded; carries a warning when the
     /// translate setting can't do what the user expects with this model.
     ready_status: &'static str,
@@ -58,6 +63,7 @@ impl Engine {
         language: Option<String>,
         translate: bool,
         threads: i32,
+        chinese_output: ChineseOutput,
     ) -> Result<Engine, String> {
         if !model_path.is_file() {
             return Err(format!("model file not found: {}", model_path.display()));
@@ -117,11 +123,13 @@ impl Engine {
             ..Default::default()
         };
         let session = model.session_with(&options).map_err(|e| e.to_string())?;
+        let chinese_converter = ChineseConverter::new(chinese_output)?;
         Ok(Engine {
             session,
             language,
             task,
             run_ext,
+            chinese_converter,
             ready_status,
         })
     }
@@ -172,7 +180,7 @@ impl Engine {
                 ..Default::default()
             };
             match self.session.run(samples, &opts) {
-                Ok(t) => return Ok(t.text),
+                Ok(t) => return Ok(self.chinese_converter.convert(&t.text)),
                 Err(transcribe_cpp::Error::Unsupported(msg)) if self.language.is_some() => {
                     let lang = self.language.take().unwrap();
                     self.language = lang.split_once('-').map(|(primary, _)| primary.to_string());
@@ -453,6 +461,8 @@ fn do_load(env: &mut JNIEnv, context: &JObject) -> Result<(), String> {
     let language = read_config(&files_dir.join(MODEL_LANGUAGE_FILE))
         .filter(|l| !l.eq_ignore_ascii_case("auto"));
     let translate = files_dir.join(MODEL_TRANSLATE_FILE).exists();
+    let chinese_output =
+        ChineseOutput::from_setting(read_config(&files_dir.join(CHINESE_OUTPUT_FILE)).as_deref());
     let threads = read_config(&files_dir.join(MODEL_THREADS_FILE))
         .and_then(|s| s.parse::<i32>().ok())
         .filter(|&n| n > 0)
@@ -461,7 +471,7 @@ fn do_load(env: &mut JNIEnv, context: &JObject) -> Result<(), String> {
     if let Some(name) = read_config(&files_dir.join(ACTIVE_MODEL_FILE)) {
         let path = files_dir.join("models").join(&name);
         notify_status(env, context, &format!("Loading model {}...", name));
-        match Engine::load(&path, language.clone(), translate, threads) {
+        match Engine::load(&path, language.clone(), translate, threads, chinese_output) {
             Ok(engine) => {
                 let status = engine.ready_status;
                 *GLOBAL_ENGINE.lock().unwrap() = Some(Arc::new(Mutex::new(engine)));
@@ -490,7 +500,7 @@ fn do_load(env: &mut JNIEnv, context: &JObject) -> Result<(), String> {
 
     notify_status(env, context, "Loading model...");
 
-    match Engine::load(&path, language, translate, threads) {
+    match Engine::load(&path, language, translate, threads, chinese_output) {
         Ok(engine) => {
             let status = engine.ready_status;
             *GLOBAL_ENGINE.lock().unwrap() = Some(Arc::new(Mutex::new(engine)));

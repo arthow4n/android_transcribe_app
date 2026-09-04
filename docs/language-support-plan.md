@@ -1,6 +1,6 @@
 # Language Support Plan
 
-Status: discussion draft
+Status: feature 1 implemented; feature 2 remains a discussion draft
 
 This branch tracks two related features:
 
@@ -25,6 +25,7 @@ the conversion setting should control how recognized Chinese text is written.
 Add a **Chinese output** choice near the existing model language setting:
 
 - **As transcribed** (default; no conversion)
+- **Simplified Chinese**
 - **Traditional Chinese (Taiwan)**
 
 Keep the setting explicit rather than silently tying it to `zh-TW`. This lets a
@@ -66,16 +67,11 @@ Use OpenCC dictionaries rather than a hand-written character table. Chinese
 conversion is context-sensitive, so one-to-one replacement produces incorrect
 results for ambiguous characters and phrases.
 
-Preferred implementation direction: integrate the Apache-2.0 OpenCC engine and
-bundle only the configuration/dictionaries needed for `s2tw`. Before choosing a
-binding, make a small Android cross-compilation prototype and compare:
-
-- official OpenCC C/C++ through its C API;
-- a maintained Rust implementation compatible with OpenCC data.
-
-Choose the option that preserves OpenCC behavior while adding the least APK
-size, native-build complexity, and runtime memory. Record the exact dependency
-version and include its license/notice in the app.
+The implementation uses pinned `ferrous-opencc` 0.4.0 with only its Simplified
+and Traditional conversion features enabled. It is pure Rust and embeds its
+OpenCC-compatible dictionaries, avoiding runtime downloads, an Android wrapper,
+and an additional JNI boundary. The exact version and license are recorded in
+`THIRD_PARTY_NOTICES.md`.
 
 Android ICU transliteration and a custom character map are not preferred: they
 do not provide OpenCC's phrase-aware conversion quality.

@@ -47,6 +47,7 @@ import java.util.Locale;
  *   - {@code active_model}: file name of the GGUF under {@code files/models/},
  *     absent/empty = built-in model.
  *   - {@code model_language}: optional language hint for GGUF models.
+ *   - {@code chinese_output}: optional post-processing target for Chinese text.
  */
 public class ModelsActivity extends AppCompatActivity {
     private static final String TAG = "ModelsActivity";
@@ -103,6 +104,7 @@ public class ModelsActivity extends AppCompatActivity {
     private TextView importText;
     private Button importButton;
     private Spinner languageSpinner;
+    private Spinner chineseOutputSpinner;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -116,6 +118,7 @@ public class ModelsActivity extends AppCompatActivity {
         importText = findViewById(R.id.txt_import);
         importButton = findViewById(R.id.btn_import);
         languageSpinner = findViewById(R.id.spinner_language);
+        chineseOutputSpinner = findViewById(R.id.spinner_chinese_output);
 
         importButton.setOnClickListener(v -> {
             Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
@@ -127,6 +130,7 @@ public class ModelsActivity extends AppCompatActivity {
         findViewById(R.id.btn_model_links).setOnClickListener(v -> showLinksDialog());
 
         setupLanguageSpinner();
+        setupChineseOutputSpinner();
         setupThreadsSpinner();
 
         com.google.android.material.materialswitch.MaterialSwitch translateSwitch =
@@ -185,6 +189,46 @@ public class ModelsActivity extends AppCompatActivity {
                 if (tag.equals(readConfig("model_language"))) return;
                 writeConfig("model_language", tag);
                 snackbar(getString(R.string.models_language_saved));
+                statusText.setText(getString(R.string.models_loading));
+                reloadModelNative(ModelsActivity.this);
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+            }
+        });
+    }
+
+    // --- Chinese output conversion -----------------------------------------
+
+    private static final String[] CHINESE_OUTPUT_VALUES = {
+            "", "simplified", "traditional_tw"
+    };
+
+    private void setupChineseOutputSpinner() {
+        String stored = readConfig("chinese_output");
+        int[] labelIds = {
+                R.string.models_chinese_output_none,
+                R.string.models_chinese_output_simplified,
+                R.string.models_chinese_output_traditional_tw
+        };
+
+        List<String> labels = new ArrayList<>(labelIds.length);
+        for (int labelId : labelIds) labels.add(getString(labelId));
+
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                this, android.R.layout.simple_spinner_item, labels);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        chineseOutputSpinner.setAdapter(adapter);
+        int selected = Arrays.asList(CHINESE_OUTPUT_VALUES).indexOf(stored);
+        chineseOutputSpinner.setSelection(Math.max(0, selected), false);
+        chineseOutputSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                String value = CHINESE_OUTPUT_VALUES[position];
+                if (value.equals(readConfig("chinese_output"))) return;
+                writeConfig("chinese_output", value);
+                snackbar(getString(R.string.models_chinese_output_saved));
                 statusText.setText(getString(R.string.models_loading));
                 reloadModelNative(ModelsActivity.this);
             }
