@@ -74,9 +74,11 @@
     <string name="models_delete">Delete model</string>
     <string name="models_delete_confirm">Delete %1$s from the app\'s storage?</string>
     <string name="models_language_section">Language</string>
-    <string name="models_language_desc">The language passed to the model. “Automatic” lets the model decide. If speech is transcribed in the wrong language or script, pick your language explicitly. Languages the active model doesn\'t support are ignored.</string>
+    <string name="models_language_desc">The language passed to the model. “Automatic” lets the model decide. If speech is transcribed in the wrong language or script, pick your language explicitly. Unsupported choices normally fall back to automatic detection.</string>
     <string name="models_language_auto">Automatic</string>
     <string name="models_language_saved">Language saved</string>
+    <string name="models_strict_language">Strict language</string>
+    <string name="models_strict_language_desc">Never fall back to automatic detection if the model rejects the selected language. Instead, show an error.</string>
     <string name="models_chinese_output">Chinese output</string>
     <string name="models_chinese_output_desc">Optionally convert recognized Chinese text offline. This is separate from the recognition language.</string>
     <string name="models_chinese_output_none">No conversion</string>

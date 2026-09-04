@@ -1,6 +1,6 @@
 # Language Support Plan
 
-Status: feature 1 implemented; feature 2 remains a discussion draft
+Status: feature 1 implemented; strict-language part of feature 2 implemented
 
 This branch tracks two related features:
 
@@ -102,7 +102,12 @@ subtitles, and file transcription with a model known to emit Simplified Chinese.
 
 ## Feature 2: Swedish language/accent steering
 
-This feature is intentionally not designed yet. A fixed audio prompt helps only
+Strict language enforcement is the first implemented part of this feature. If
+an explicit locale is rejected, the engine may retry its primary code
+(`sv-SE` → `sv`) but will return a clear error rather than fall back to automatic
+detection. The setting is optional and disabled by default.
+
+A fixed audio prompt helps only
 if a model/runtime supports reference-audio or acoustic-prompt conditioning;
 it cannot be assumed to work for every imported GGUF model. The investigation
 should first catalog the prompt/language controls exposed by each supported

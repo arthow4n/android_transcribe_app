@@ -47,6 +47,7 @@ import java.util.Locale;
  *   - {@code active_model}: file name of the GGUF under {@code files/models/},
  *     absent/empty = built-in model.
  *   - {@code model_language}: optional language hint for GGUF models.
+ *   - {@code model_language_strict}: prevents fallback to automatic detection.
  *   - {@code chinese_output}: optional post-processing target for Chinese text.
  */
 public class ModelsActivity extends AppCompatActivity {
@@ -105,6 +106,7 @@ public class ModelsActivity extends AppCompatActivity {
     private Button importButton;
     private Spinner languageSpinner;
     private Spinner chineseOutputSpinner;
+    private com.google.android.material.materialswitch.MaterialSwitch strictLanguageSwitch;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -119,6 +121,7 @@ public class ModelsActivity extends AppCompatActivity {
         importButton = findViewById(R.id.btn_import);
         languageSpinner = findViewById(R.id.spinner_language);
         chineseOutputSpinner = findViewById(R.id.spinner_chinese_output);
+        strictLanguageSwitch = findViewById(R.id.switch_strict_language);
 
         importButton.setOnClickListener(v -> {
             Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
@@ -129,6 +132,7 @@ public class ModelsActivity extends AppCompatActivity {
 
         findViewById(R.id.btn_model_links).setOnClickListener(v -> showLinksDialog());
 
+        setupStrictLanguageSwitch();
         setupLanguageSpinner();
         setupChineseOutputSpinner();
         setupThreadsSpinner();
@@ -161,6 +165,16 @@ public class ModelsActivity extends AppCompatActivity {
             "ar-SA", "zh-CN", "zh-TW", "hi-IN", "ja-JP", "ko-KR", "tr-TR",
     };
 
+    private void setupStrictLanguageSwitch() {
+        strictLanguageSwitch.setChecked(!readConfig("model_language_strict").isEmpty());
+        strictLanguageSwitch.setEnabled(!readConfig("model_language").isEmpty());
+        strictLanguageSwitch.setOnCheckedChangeListener((btn, checked) -> {
+            writeConfig("model_language_strict", checked ? "1" : "");
+            statusText.setText(getString(R.string.models_loading));
+            reloadModelNative(this);
+        });
+    }
+
     private void setupLanguageSpinner() {
         String stored = readConfig("model_language");
 
@@ -186,6 +200,7 @@ public class ModelsActivity extends AppCompatActivity {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 String tag = tags.get(position);
+                strictLanguageSwitch.setEnabled(!tag.isEmpty());
                 if (tag.equals(readConfig("model_language"))) return;
                 writeConfig("model_language", tag);
                 snackbar(getString(R.string.models_language_saved));

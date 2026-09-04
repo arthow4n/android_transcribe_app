@@ -23,6 +23,9 @@ const ACTIVE_MODEL_FILE: &str = "active_model";
 /// File in filesDir with an optional language hint — a locale like `en-US`
 /// or `auto`. Absent or empty = let the model autodetect.
 const MODEL_LANGUAGE_FILE: &str = "model_language";
+/// Marker file: if the selected locale and its primary language code are both
+/// rejected, report an error instead of falling back to automatic detection.
+const MODEL_LANGUAGE_STRICT_FILE: &str = "model_language_strict";
 /// Optional output normalization: `simplified` or `traditional_tw`. Absent or
 /// empty preserves the model's transcription exactly.
 const CHINESE_OUTPUT_FILE: &str = "chinese_output";
@@ -47,6 +50,7 @@ const SPLIT_SEARCH_SAMPLES: usize = 10 * 16_000;
 pub struct Engine {
     session: transcribe_cpp::Session,
     language: Option<String>,
+    language_strict: bool,
     task: transcribe_cpp::Task,
     /// Family-specific decode options attached to every run; `None` for
     /// models that don't take the whisper run extension.
@@ -61,6 +65,7 @@ impl Engine {
     fn load(
         model_path: &Path,
         language: Option<String>,
+        language_strict: bool,
         translate: bool,
         threads: i32,
         chinese_output: ChineseOutput,
@@ -127,6 +132,7 @@ impl Engine {
         Ok(Engine {
             session,
             language,
+            language_strict,
             task,
             run_ext,
             chinese_converter,
@@ -167,10 +173,9 @@ impl Engine {
     }
 
     /// One model run. A rejected language hint is degraded instead of
-    /// failing the transcription: `de-DE` retries as `de`, then as no hint
-    /// (each model knows a different set of tags — e.g. Parakeet v3 takes
-    /// locales/short codes, English-only models take none). The degraded
-    /// value is kept so later runs skip the rejected attempts.
+    /// failing the transcription: `de-DE` retries as `de`, then (unless strict
+    /// language mode is enabled) as no hint. Each model knows a different set
+    /// of tags. The degraded value is kept so later runs skip rejected forms.
     fn run(&mut self, samples: &[f32]) -> Result<String, String> {
         loop {
             let opts = transcribe_cpp::RunOptions {
@@ -182,8 +187,8 @@ impl Engine {
             match self.session.run(samples, &opts) {
                 Ok(t) => return Ok(self.chinese_converter.convert(&t.text)),
                 Err(transcribe_cpp::Error::Unsupported(msg)) if self.language.is_some() => {
-                    let lang = self.language.take().unwrap();
-                    self.language = lang.split_once('-').map(|(primary, _)| primary.to_string());
+                    let lang = self.language.as_ref().unwrap().clone();
+                    self.language = next_language_after_rejection(&lang, self.language_strict)?;
                     log::warn!(
                         "language hint '{}' rejected ({}); retrying with {:?}",
                         lang,
@@ -194,6 +199,24 @@ impl Engine {
                 Err(e) => return Err(e.to_string()),
             }
         }
+    }
+}
+
+fn next_language_after_rejection(
+    language: &str,
+    strict: bool,
+) -> Result<Option<String>, String> {
+    if let Some((primary, _)) = language.split_once('-') {
+        if !primary.is_empty() {
+            return Ok(Some(primary.to_string()));
+        }
+    }
+    if strict {
+        Err(format!(
+            "selected language '{language}' is not supported by this model"
+        ))
+    } else {
+        Ok(None)
     }
 }
 
@@ -460,6 +483,7 @@ fn do_load(env: &mut JNIEnv, context: &JObject) -> Result<(), String> {
     // the model doesn't know is degraded per run — see Engine::run.
     let language = read_config(&files_dir.join(MODEL_LANGUAGE_FILE))
         .filter(|l| !l.eq_ignore_ascii_case("auto"));
+    let language_strict = files_dir.join(MODEL_LANGUAGE_STRICT_FILE).exists();
     let translate = files_dir.join(MODEL_TRANSLATE_FILE).exists();
     let chinese_output =
         ChineseOutput::from_setting(read_config(&files_dir.join(CHINESE_OUTPUT_FILE)).as_deref());
@@ -471,7 +495,14 @@ fn do_load(env: &mut JNIEnv, context: &JObject) -> Result<(), String> {
     if let Some(name) = read_config(&files_dir.join(ACTIVE_MODEL_FILE)) {
         let path = files_dir.join("models").join(&name);
         notify_status(env, context, &format!("Loading model {}...", name));
-        match Engine::load(&path, language.clone(), translate, threads, chinese_output) {
+        match Engine::load(
+            &path,
+            language.clone(),
+            language_strict,
+            translate,
+            threads,
+            chinese_output,
+        ) {
             Ok(engine) => {
                 let status = engine.ready_status;
                 *GLOBAL_ENGINE.lock().unwrap() = Some(Arc::new(Mutex::new(engine)));
@@ -500,7 +531,14 @@ fn do_load(env: &mut JNIEnv, context: &JObject) -> Result<(), String> {
 
     notify_status(env, context, "Loading model...");
 
-    match Engine::load(&path, language, translate, threads, chinese_output) {
+    match Engine::load(
+        &path,
+        language,
+        language_strict,
+        translate,
+        threads,
+        chinese_output,
+    ) {
         Ok(engine) => {
             let status = engine.ready_status;
             *GLOBAL_ENGINE.lock().unwrap() = Some(Arc::new(Mutex::new(engine)));
@@ -515,5 +553,30 @@ fn do_load(env: &mut JNIEnv, context: &JObject) -> Result<(), String> {
             notify_status(env, context, &format!("Error: {}", msg));
             Err(msg)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::next_language_after_rejection;
+
+    #[test]
+    fn locale_retries_as_primary_language_in_strict_mode() {
+        assert_eq!(
+            next_language_after_rejection("sv-SE", true).unwrap(),
+            Some("sv".to_string())
+        );
+    }
+
+    #[test]
+    fn strict_mode_does_not_fall_back_to_detection() {
+        let error = next_language_after_rejection("sv", true).unwrap_err();
+        assert!(error.contains("sv"));
+        assert!(error.contains("not supported"));
+    }
+
+    #[test]
+    fn relaxed_mode_preserves_automatic_detection_fallback() {
+        assert_eq!(next_language_after_rejection("sv", false).unwrap(), None);
     }
 }
