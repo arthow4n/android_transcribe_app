@@ -19,9 +19,13 @@ import android.view.inputmethod.EditorInfo;
 import android.content.res.ColorStateList;
 import android.view.ContextThemeWrapper;
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 import com.google.android.material.color.DynamicColors;
 import com.google.android.material.color.MaterialColors;
+import com.google.android.material.button.MaterialButtonToggleGroup;
 
 public class RustInputMethodService extends InputMethodService {
     
@@ -48,6 +52,7 @@ public class RustInputMethodService extends InputMethodService {
     private View inputView;
     private MicLevelView micLevelView;
     private View recordCircle;
+    private MaterialButtonToggleGroup languageGroup;
     // Night flag the current input view was inflated with, so it can be rebuilt
     // if the theme preference changes while this process stays alive.
     private boolean viewIsNight = false;
@@ -128,6 +133,9 @@ public class RustInputMethodService extends InputMethodService {
             spaceButton = view.findViewById(R.id.ime_space);
             enterButton = view.findViewById(R.id.ime_enter);
             switchKeyboardButton = view.findViewById(R.id.ime_switch_keyboard);
+            languageGroup = view.findViewById(R.id.ime_language_group);
+
+            setupLanguageShortcuts();
 
             switchKeyboardButton.setOnClickListener(v -> {
                 if (isRecording) {
@@ -400,6 +408,64 @@ public class RustInputMethodService extends InputMethodService {
     private native void startRecording();
     private native void stopRecording();
     private native void cancelRecording();
+    private native void setLanguageNative(String language);
+
+    private void setupLanguageShortcuts() {
+        String language = readConfig("model_language");
+        if ("sv-SE".equals(language)) {
+            languageGroup.check(R.id.ime_language_sv);
+        } else if ("zh-TW".equals(language)) {
+            languageGroup.check(R.id.ime_language_zh_tw);
+        } else if ("en-US".equals(language)) {
+            languageGroup.check(R.id.ime_language_en);
+        }
+
+        languageGroup.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
+            if (!isChecked) return;
+            final String selected;
+            if (checkedId == R.id.ime_language_sv) {
+                selected = "sv-SE";
+            } else if (checkedId == R.id.ime_language_zh_tw) {
+                selected = "zh-TW";
+            } else if (checkedId == R.id.ime_language_en) {
+                selected = "en-US";
+            } else {
+                return;
+            }
+            if (selected.equals(readConfig("model_language"))) return;
+            if (!writeConfig("model_language", selected)) {
+                Log.e(TAG, "Could not save keyboard language " + selected);
+                return;
+            }
+            try {
+                setLanguageNative(selected);
+            } catch (Throwable t) {
+                Log.e(TAG, "Could not update native keyboard language", t);
+            }
+        });
+    }
+
+    private String readConfig(String name) {
+        File file = new File(getFilesDir(), name);
+        if (!file.isFile()) return "";
+        try {
+            return new String(java.nio.file.Files.readAllBytes(file.toPath()),
+                    StandardCharsets.UTF_8).trim();
+        } catch (IOException e) {
+            Log.w(TAG, "Could not read " + name, e);
+            return "";
+        }
+    }
+
+    private boolean writeConfig(String name, String value) {
+        try (FileOutputStream out = new FileOutputStream(new File(getFilesDir(), name))) {
+            out.write(value.getBytes(StandardCharsets.UTF_8));
+            return true;
+        } catch (IOException e) {
+            Log.e(TAG, "Could not write " + name, e);
+            return false;
+        }
+    }
 
     // Called from Rust
     public void onStatusUpdate(String status) {
@@ -446,6 +512,14 @@ public class RustInputMethodService extends InputMethodService {
             boolean disable = isTranscribing || isWaiting || isError;
             recordContainer.setEnabled(!disable);
             recordContainer.setAlpha(disable ? 0.5f : 1.0f);
+        }
+
+        if (languageGroup != null) {
+            boolean disable = isRecording || isTranscribing || isWaiting;
+            for (int i = 0; i < languageGroup.getChildCount(); i++) {
+                languageGroup.getChildAt(i).setEnabled(!disable);
+            }
+            languageGroup.setAlpha(disable ? 0.5f : 1.0f);
         }
 
         if (hintView != null && !isRecording) {

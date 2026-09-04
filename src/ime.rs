@@ -1,4 +1,4 @@
-use jni::objects::{JClass, JObject};
+use jni::objects::{JClass, JObject, JString};
 use jni::JNIEnv;
 use once_cell::sync::Lazy;
 use std::sync::Mutex;
@@ -56,5 +56,19 @@ pub unsafe extern "system" fn Java_dev_notune_transcribe_RustInputMethodService_
     let mut guard = IME_STATE.lock().unwrap();
     if let Some(state) = guard.as_mut() {
         voice_session::cancel_recording(env, state);
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "system" fn Java_dev_notune_transcribe_RustInputMethodService_setLanguageNative(
+    mut env: JNIEnv,
+    _class: JClass,
+    language: JString,
+) {
+    match env.get_string(&language) {
+        Ok(value) => {
+            crate::engine::set_language(Some(value.to_string_lossy().into_owned()));
+        }
+        Err(error) => log::error!("failed to read IME language: {error}"),
     }
 }

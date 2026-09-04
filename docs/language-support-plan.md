@@ -107,6 +107,12 @@ an explicit locale is rejected, the engine may retry its primary code
 (`sv-SE` → `sv`) but will return a clear error rather than fall back to automatic
 detection. The setting is optional and disabled by default.
 
+The voice keyboard also provides one-tap `SV-SE`, `ZH-TW`, and English
+(`en-US`) shortcuts. They persist the same recognition-language setting used
+by the model screen and update an already-loaded engine without reloading the
+model. The separate Chinese output-conversion choice is deliberately left
+unchanged when switching recognition language.
+
 A fixed audio prompt helps only
 if a model/runtime supports reference-audio or acoustic-prompt conditioning;
 it cannot be assumed to work for every imported GGUF model. The investigation

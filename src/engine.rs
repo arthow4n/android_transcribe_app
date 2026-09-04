@@ -202,10 +202,7 @@ impl Engine {
     }
 }
 
-fn next_language_after_rejection(
-    language: &str,
-    strict: bool,
-) -> Result<Option<String>, String> {
+fn next_language_after_rejection(language: &str, strict: bool) -> Result<Option<String>, String> {
     if let Some((primary, _)) = language.split_once('-') {
         if !primary.is_empty() {
             return Ok(Some(primary.to_string()));
@@ -221,8 +218,10 @@ fn next_language_after_rejection(
 }
 
 /// Holds the loaded engine singleton.
-static GLOBAL_ENGINE: Lazy<Mutex<Option<Arc<Mutex<Engine>>>>> =
-    Lazy::new(|| Mutex::new(None));
+static GLOBAL_ENGINE: Lazy<Mutex<Option<Arc<Mutex<Engine>>>>> = Lazy::new(|| Mutex::new(None));
+/// Latest language selected from the live voice keyboard. This bridges the
+/// short window where a user can tap a shortcut while the model is loading.
+static LANGUAGE_OVERRIDE: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
 
 /// Loading coordination state + condvar for waiters.
 static LOAD_STATE: Lazy<(Mutex<LoadState>, Condvar)> =
@@ -244,6 +243,33 @@ pub fn get_engine() -> Option<Arc<Mutex<Engine>>> {
     GLOBAL_ENGINE.lock().unwrap().clone()
 }
 
+/// Changes the language hint used by subsequent runs without reloading the
+/// model. Returns false while the engine is not loaded yet; its initial load
+/// will read the persisted setting instead.
+pub fn set_language(language: Option<String>) -> bool {
+    let language = language.filter(|value| !value.eq_ignore_ascii_case("auto"));
+    *LANGUAGE_OVERRIDE.lock().unwrap() = language.clone();
+    let Some(engine) = get_engine() else {
+        return false;
+    };
+    let mut guard = engine
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    guard.language = language;
+    true
+}
+
+fn install_engine(engine: Engine) {
+    let engine = Arc::new(Mutex::new(engine));
+    *GLOBAL_ENGINE.lock().unwrap() = Some(engine.clone());
+    if let Some(language) = LANGUAGE_OVERRIDE.lock().unwrap().clone() {
+        engine
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .language = Some(language);
+    }
+}
+
 /// Runs a transcription on the shared engine. Two layers of hardening keep a
 /// single bad run from freezing every later one (the symptom would be an IME
 /// stuck at "Processing" until its process dies, since notify callbacks stop
@@ -254,7 +280,9 @@ pub fn transcribe_shared(engine: &Arc<Mutex<Engine>>, samples: Vec<f32>) -> Resu
     let audio_secs = samples.len() as f64 / 16_000.0;
     let started = std::time::Instant::now();
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let mut guard = engine.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let mut guard = engine
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         guard.transcribe(samples)
     }))
     .unwrap_or_else(|_| {
@@ -284,6 +312,7 @@ pub fn reset() {
         state = cvar.wait(state).unwrap();
     }
     *GLOBAL_ENGINE.lock().unwrap() = None;
+    *LANGUAGE_OVERRIDE.lock().unwrap() = None;
     *state = LoadState::Idle;
 }
 
@@ -505,7 +534,7 @@ fn do_load(env: &mut JNIEnv, context: &JObject) -> Result<(), String> {
         ) {
             Ok(engine) => {
                 let status = engine.ready_status;
-                *GLOBAL_ENGINE.lock().unwrap() = Some(Arc::new(Mutex::new(engine)));
+                install_engine(engine);
                 notify_status(env, context, status);
                 return Ok(());
             }
@@ -541,7 +570,7 @@ fn do_load(env: &mut JNIEnv, context: &JObject) -> Result<(), String> {
     ) {
         Ok(engine) => {
             let status = engine.ready_status;
-            *GLOBAL_ENGINE.lock().unwrap() = Some(Arc::new(Mutex::new(engine)));
+            install_engine(engine);
             notify_status(env, context, status);
             Ok(())
         }

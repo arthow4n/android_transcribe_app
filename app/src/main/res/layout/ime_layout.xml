@@ -73,6 +73,46 @@
             android:textAppearance="?attr/textAppearanceBodySmall"/>
     </FrameLayout>
 
+    <!-- Fast language selection for multilingual dictation. -->
+    <com.google.android.material.button.MaterialButtonToggleGroup
+        android:id="@+id/ime_language_group"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:layout_marginTop="4dp"
+        app:selectionRequired="false"
+        app:singleSelection="true">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/ime_language_sv"
+            style="?attr/materialButtonOutlinedStyle"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:minWidth="0dp"
+            android:paddingHorizontal="4dp"
+            android:text="@string/ime_language_sv" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/ime_language_zh_tw"
+            style="?attr/materialButtonOutlinedStyle"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:minWidth="0dp"
+            android:paddingHorizontal="4dp"
+            android:text="@string/ime_language_zh_tw" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/ime_language_en"
+            style="?attr/materialButtonOutlinedStyle"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:minWidth="0dp"
+            android:paddingHorizontal="4dp"
+            android:text="@string/ime_language_en" />
+    </com.google.android.material.button.MaterialButtonToggleGroup>
+
     <!-- Bottom key row -->
     <LinearLayout
         android:layout_width="match_parent"
