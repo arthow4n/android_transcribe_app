@@ -1,11 +1,9 @@
 name: Build Android App
 
 on:
-  push:
-    tags:
-      - 'v*'
-    branches:
-      - '**'
+  # Keep release builds available when explicitly requested, but do not run
+  # automatically for branch pushes or tag creation.
+  workflow_dispatch:
 
 jobs:
   build:

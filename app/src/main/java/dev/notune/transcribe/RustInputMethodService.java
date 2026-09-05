@@ -674,12 +674,19 @@ public class RustInputMethodService extends InputMethodService {
     private void updateModelView() {
         if (modelView == null) return;
         String active = readConfig("active_model");
-        String model = active.isEmpty()
-                ? "Parakeet TDT 0.6B v3"
-                : active.endsWith(".gguf")
-                        ? active.substring(0, active.length() - ".gguf".length())
-                        : active;
+        String model = active.isEmpty() ? "Parakeet TDT 0.6B v3" : stripModelExtension(active);
         modelView.setText(getString(R.string.ime_model_format, model));
+    }
+
+    private static String stripModelExtension(String name) {
+        String lower = name.toLowerCase(java.util.Locale.ROOT);
+        if (lower.endsWith(".gguf")) {
+            return name.substring(0, name.length() - ".gguf".length());
+        }
+        if (lower.endsWith(".bin")) {
+            return name.substring(0, name.length() - ".bin".length());
+        }
+        return name;
     }
 
     private void updateStatsView() {

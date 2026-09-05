@@ -37,16 +37,16 @@ import java.util.Locale;
 
 /**
  * Lets the user pick the speech model: the built-in Parakeet model, or any
- * transcribe.cpp GGUF model imported from a locally downloaded file. Import
- * goes through the system file picker (SAF), so the app itself needs no
- * internet or storage permission — download links are only *shown* here and
- * open in the browser.
+ * transcribe.cpp GGUF model (or a legacy Whisper GGML {@code .bin}) imported
+ * from a locally downloaded file. Import goes through the system file picker
+ * (SAF), so the app itself needs no internet or storage permission — download
+ * links are only *shown* here and open in the browser.
  *
  * The selection is stored as marker files in filesDir (same pattern as the
  * other settings), read by the Rust engine loader:
- *   - {@code active_model}: file name of the GGUF under {@code files/models/},
- *     absent/empty = built-in model.
- *   - {@code model_language}: optional language hint for GGUF models.
+ *   - {@code active_model}: file name of the imported model under
+ *     {@code files/models/}, absent/empty = built-in model.
+ *   - {@code model_language}: optional language hint for imported models.
  *   - {@code model_language_strict}: prevents fallback to automatic detection.
  *   - {@code chinese_output}: optional post-processing target for Chinese text.
  */
@@ -334,8 +334,7 @@ public class ModelsActivity extends AppCompatActivity {
         String active = readConfig("active_model");
 
         List<String> names = new ArrayList<>();
-        File[] files = modelsDir().listFiles(
-                (dir, name) -> name.toLowerCase(Locale.ROOT).endsWith(".gguf"));
+        File[] files = modelsDir().listFiles((dir, name) -> isModelFileName(name));
         if (files != null) {
             for (File f : files) names.add(f.getName());
         }
@@ -443,7 +442,7 @@ public class ModelsActivity extends AppCompatActivity {
         String name = queryDisplayName(uri);
         long size = querySize(uri);
 
-        if (name == null || !name.toLowerCase(Locale.ROOT).endsWith(".gguf")) {
+        if (name == null || !isModelFileName(name)) {
             new MaterialAlertDialogBuilder(this)
                     .setTitle(R.string.models_import_bad_title)
                     .setMessage(R.string.models_import_bad_body)
@@ -457,6 +456,13 @@ public class ModelsActivity extends AppCompatActivity {
         }
 
         importModel(uri, name, size);
+    }
+
+    /** Returns whether a picked file is a model format understood by the loader. */
+    private static boolean isModelFileName(String name) {
+        if (name == null) return false;
+        String lower = name.toLowerCase(Locale.ROOT);
+        return lower.endsWith(".gguf") || lower.endsWith(".bin");
     }
 
     private void importModel(Uri uri, String name, long size) {

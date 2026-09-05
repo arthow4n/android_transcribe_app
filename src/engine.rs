@@ -1,11 +1,12 @@
-//! Loads and serves the speech-to-text engine (transcribe.cpp, GGUF models).
+//! Loads and serves the speech-to-text engine (transcribe.cpp GGUF and legacy
+//! Whisper GGML models).
 //!
 //! The engine is a process-wide singleton behind `Arc<Mutex<..>>`: a
 //! transcribe.cpp session may only be used by one thread at a time, which the
 //! mutex guarantees. Model selection is read from marker files in filesDir
-//! (written by `ModelsActivity`): an imported GGUF if one is selected, the
-//! bundled model otherwise — with the bundled model as fallback if the
-//! imported one fails to load.
+//! (written by `ModelsActivity`): an imported GGUF or legacy Whisper `.bin`
+//! model if one is selected, the bundled model otherwise — with the bundled
+//! model as fallback if the imported one fails to load.
 
 use once_cell::sync::Lazy;
 use std::path::Path;
@@ -17,8 +18,9 @@ use jni::JNIEnv;
 use crate::assets;
 use crate::chinese::{ChineseConverter, ChineseOutput};
 
-/// File in filesDir naming the imported GGUF (a file under `models/`) to use
-/// instead of the bundled model. Absent or empty = bundled model.
+/// File in filesDir naming the imported model (a GGUF or legacy Whisper `.bin`
+/// file under `models/`) to use instead of the bundled model. Absent or empty
+/// = bundled model.
 const ACTIVE_MODEL_FILE: &str = "active_model";
 /// File in filesDir with an optional language hint — a locale like `en-US`
 /// or `auto`. Absent or empty = let the model autodetect.
@@ -553,8 +555,9 @@ fn read_config(path: &Path) -> Option<String> {
     }
 }
 
-/// Performs the model load: the selected imported GGUF if any (falling back
-/// to the bundled model on failure), otherwise the bundled model.
+/// Performs the model load: the selected imported GGUF/legacy Whisper `.bin`
+/// if any (falling back to the bundled model on failure), otherwise the bundled
+/// model.
 fn do_load(env: &mut JNIEnv, context: &JObject) -> Result<(), String> {
     if let Err(msg) = check_cpu_features() {
         notify_status(env, context, &format!("Error: {}", msg));

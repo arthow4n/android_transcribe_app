@@ -53,21 +53,21 @@
 
     <string name="recognition_service_label">Offline Voice Input</string>
 
-    <!-- Speech model management (transcribe.cpp GGUF backend) -->
+    <!-- Speech model management (transcribe.cpp GGUF/GGML backend) -->
     <string name="models_title">Speech models</string>
     <string name="models_section">Speech model</string>
     <string name="models_active_section">Active model</string>
-    <string name="models_desc">The built-in model works out of the box. You can also import any transcribe.cpp GGUF model you\'ve downloaded. The app stays fully offline; downloads happen in your browser. The voice keyboard picks up a model change after it restarts.</string>
+    <string name="models_desc">The built-in model works out of the box. You can also import any transcribe.cpp GGUF model or legacy Whisper .bin model you\'ve downloaded. The app stays fully offline; downloads happen in your browser. The voice keyboard picks up a model change after it restarts.</string>
     <string name="models_builtin">Parakeet TDT 0.6B v3</string>
     <string name="models_builtin_sub">Included in the app · 25 European languages</string>
     <string name="models_loading">Loading model…</string>
-    <string name="models_import">Import model file (.gguf)</string>
+    <string name="models_import">Import model file (.gguf or .bin)</string>
     <string name="models_importing">Importing %1$s…</string>
     <string name="models_import_done">Imported %1$s</string>
     <string name="models_import_failed">Import failed: the file could not be copied.</string>
     <string name="models_import_no_space">Not enough free storage to import this model.</string>
-    <string name="models_import_bad_title">Not a GGUF model</string>
-    <string name="models_import_bad_body">Please select a .gguf model file for transcribe.cpp. Tap “Where to get models” for download links.</string>
+    <string name="models_import_bad_title">Unsupported model file</string>
+    <string name="models_import_bad_body">Please select a .gguf model or legacy Whisper .bin file for transcribe.cpp. Tap “Where to get models” for download links.</string>
     <string name="models_links">Where to get models</string>
     <string name="models_links_title">Model downloads (open in browser)</string>
     <string name="model_desc_parakeet110m">English only, small and fast</string>
