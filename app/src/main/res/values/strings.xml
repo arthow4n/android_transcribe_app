@@ -40,6 +40,8 @@
 
     <string name="setting_auto_stop">Auto-stop after silence</string>
     <string name="setting_auto_stop_desc">End the voice input popup automatically ~2 seconds after you stop speaking</string>
+    <string name="setting_ime_streaming">Process while recording</string>
+    <string name="setting_ime_streaming_desc">Reduce the wait after stopping with supported speech models. Text is inserted once you stop.</string>
 
     <string name="setting_subtitle_lines">Subtitle length</string>
     <string name="setting_subtitle_lines_desc">How many lines the live subtitles show; older text scrolls away</string>

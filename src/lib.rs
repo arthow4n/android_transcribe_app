@@ -8,5 +8,6 @@ pub mod models;
 pub mod recog_service;
 pub mod recognize;
 pub mod subtitle;
+pub mod streaming_dictation;
 pub mod transcribe_file;
 pub mod voice_session;

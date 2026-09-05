@@ -7,6 +7,7 @@ use jni::objects::{GlobalRef, JObject};
 use jni::JNIEnv;
 
 use crate::engine;
+use crate::streaming_dictation::{self, StreamingControl};
 
 // --- Optional auto-stop endpointing (same level heuristics as recog_service) --
 /// Absolute smoothed level (0..1) that must be exceeded to count as speech.
@@ -39,6 +40,7 @@ pub struct VoiceSessionState {
     /// True while the current recording runs; flipped off on stop/cancel so
     /// the auto-stop monitor (if any) exits.
     pub session_active: Arc<AtomicBool>,
+    pub streaming_control: Option<Arc<StreamingControl>>,
 }
 
 fn notify_status(env: &mut JNIEnv, obj: &JObject, msg: &str) {
@@ -83,6 +85,7 @@ pub fn init_session(env: JNIEnv, target: JObject) -> VoiceSessionState {
         target_ref: target_ref.clone(),
         last_level_sent: Arc::new(Mutex::new(std::time::Instant::now())),
         session_active: Arc::new(AtomicBool::new(false)),
+        streaming_control: None,
     };
 
     // Load engine in background
@@ -101,6 +104,15 @@ pub fn init_session(env: JNIEnv, target: JObject) -> VoiceSessionState {
 /// Java-side `onAutoStop()` callback, which is expected to stop the recording
 /// the same way a manual tap would.
 pub fn start_recording(mut env: JNIEnv, state: &mut VoiceSessionState, auto_stop: bool) {
+    start_recording_mode(env, state, auto_stop, false);
+}
+
+pub fn start_recording_mode(
+    mut env: JNIEnv,
+    state: &mut VoiceSessionState,
+    auto_stop: bool,
+    streaming_requested: bool,
+) {
     let host = cpal::default_host();
     let device = match host.default_input_device() {
         Some(d) => d,
@@ -122,6 +134,26 @@ pub fn start_recording(mut env: JNIEnv, state: &mut VoiceSessionState, auto_stop
 
     state.audio_buffer.lock().unwrap().clear();
     let buffer_clone = state.audio_buffer.clone();
+    let streaming_control = if streaming_requested {
+        engine::get_engine().and_then(|engine| {
+            let supports = engine
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .supports_streaming();
+            if supports {
+                Some(streaming_dictation::start(
+                    engine,
+                    state.jvm.clone(),
+                    state.target_ref.clone(),
+                ))
+            } else {
+                None
+            }
+        })
+    } else {
+        None
+    };
+    state.streaming_control = streaming_control.clone();
 
     // End any previous session's monitor, then arm a fresh flag.
     state.session_active.store(false, Ordering::SeqCst);
@@ -146,7 +178,11 @@ pub fn start_recording(mut env: JNIEnv, state: &mut VoiceSessionState, auto_stop
     let stream = device.build_input_stream(
         &config,
         move |data: &[f32], _: &_| {
-            buffer_clone.lock().unwrap().extend_from_slice(data);
+            if let Some(control) = &streaming_control {
+                control.push(data);
+            } else {
+                buffer_clone.lock().unwrap().extend_from_slice(data);
+            }
 
             // compute RMS
             let mut sum = 0.0f32;
@@ -201,8 +237,7 @@ pub fn start_recording(mut env: JNIEnv, state: &mut VoiceSessionState, auto_stop
                     }
                     let speech = ep.speech_started.load(Ordering::SeqCst);
                     let silence = ep.last_voice.lock().unwrap().elapsed();
-                    let done = (speech
-                        && silence >= Duration::from_millis(AUTO_STOP_SILENCE_MS))
+                    let done = (speech && silence >= Duration::from_millis(AUTO_STOP_SILENCE_MS))
                         || (!speech
                             && started_at.elapsed()
                                 >= Duration::from_millis(AUTO_STOP_NO_SPEECH_MS));
@@ -211,12 +246,8 @@ pub fn start_recording(mut env: JNIEnv, state: &mut VoiceSessionState, auto_stop
                         // this monitor can't both fire.
                         if session_active.swap(false, Ordering::SeqCst) {
                             if let Ok(mut env) = jvm.attach_current_thread() {
-                                let _ = env.call_method(
-                                    target_ref.as_obj(),
-                                    "onAutoStop",
-                                    "()V",
-                                    &[],
-                                );
+                                let _ =
+                                    env.call_method(target_ref.as_obj(), "onAutoStop", "()V", &[]);
                             }
                         }
                         return;
@@ -238,6 +269,12 @@ pub fn stop_recording(mut env: JNIEnv, state: &mut VoiceSessionState) {
     // Drop the stream to stop recording; end the auto-stop monitor if running.
     state.session_active.store(false, Ordering::SeqCst);
     state.stream = None;
+
+    if let Some(control) = state.streaming_control.take() {
+        control.finish();
+        notify_status(&mut env, state.target_ref.as_obj(), "Processing...");
+        return;
+    }
 
     let buffer = state.audio_buffer.lock().unwrap().clone();
 
@@ -289,6 +326,18 @@ pub fn stop_recording(mut env: JNIEnv, state: &mut VoiceSessionState) {
 pub fn cancel_recording(mut env: JNIEnv, state: &mut VoiceSessionState) {
     state.session_active.store(false, Ordering::SeqCst);
     state.stream = None;
+    if let Some(control) = state.streaming_control.take() {
+        control.cancel();
+    }
     state.audio_buffer.lock().unwrap().clear();
     notify_status(&mut env, state.target_ref.as_obj(), "Canceled");
+}
+
+impl Drop for VoiceSessionState {
+    fn drop(&mut self) {
+        self.session_active.store(false, Ordering::SeqCst);
+        if let Some(control) = self.streaming_control.take() {
+            control.cancel();
+        }
+    }
 }

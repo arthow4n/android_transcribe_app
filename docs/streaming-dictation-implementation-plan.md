@@ -1,6 +1,6 @@
 # Streaming dictation: implementation handoff
 
-Status: plan only; no streaming implementation has been made.
+Status: implemented on this branch; physical-device latency validation remains.
 Baseline: `feature/language-support`, commit `c0543ac`.
 
 ## Required behavior and scope
@@ -208,4 +208,11 @@ reviewable steps: capability/options, worker lifecycle, microphone integration,
 then UI. Update this document with actual validation results. Commit and push
 with `[skip ci]` per the thread's standing instruction; keep fork Actions
 disabled. Do not publish a release or overwrite a draft asset unless requested.
-The current task authorizes only this plan document, not its implementation.
+The implementation currently covers the keyboard-only Nemotron path described
+above. The setting is `ime_streaming`, disabled by default. The worker uses a
+30-second sample-count budget, 100 ms feed chunks, final-only insertion, and
+batch fallback whenever the selected loaded model is not Nemotron 3.5 with the
+Parakeet cache-aware streaming extension. Host tests cover queue splitting,
+sample-budget overflow, and producer lifecycle; the full ARM64 debug build has
+also passed. Device testing should record the latency and lifecycle scenarios
+listed above before enabling this setting by default.

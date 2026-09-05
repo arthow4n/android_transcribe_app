@@ -259,7 +259,7 @@ public class RustInputMethodService extends InputMethodService {
                         audioPauser.request(this);
                         pauseAudioActive = true;
                     }
-                    startRecording();
+                    startRecording(isStreamingEnabled());
                     updateRecordButtonUI(true);
                 }
             });
@@ -298,7 +298,7 @@ public class RustInputMethodService extends InputMethodService {
                     audioPauser.request(this);
                     pauseAudioActive = true;
                 }
-                startRecording();
+                startRecording(isStreamingEnabled());
                 updateRecordButtonUI(true);
             }
         }
@@ -405,7 +405,7 @@ public class RustInputMethodService extends InputMethodService {
     // Native methods
     private native void initNative(RustInputMethodService service);
     private native void cleanupNative();
-    private native void startRecording();
+    private native void startRecording(boolean streaming);
     private native void stopRecording();
     private native void cancelRecording();
     private native void setLanguageNative(String language);
@@ -472,6 +472,9 @@ public class RustInputMethodService extends InputMethodService {
         mainHandler.post(() -> {
             Log.d(TAG, "Status: " + status);
             lastStatus = status;
+            if (status != null && status.startsWith("Error") && isRecording) {
+                updateRecordButtonUI(false);
+            }
             updateUiState();
             if (pendingSwitchBack && status.startsWith("Error")) {
                 pendingSwitchBack = false;
@@ -605,6 +608,10 @@ public class RustInputMethodService extends InputMethodService {
 
     private boolean isPauseAudioEnabled() {
         return new File(getFilesDir(), "pause_audio").exists();
+    }
+
+    private boolean isStreamingEnabled() {
+        return new File(getFilesDir(), "ime_streaming").exists();
     }
 
     /** "Record in background" is default ON; the marker file is the opt-out. */

@@ -59,6 +59,8 @@ pub struct Engine {
     /// Status reported once loading succeeded; carries a warning when the
     /// translate setting can't do what the user expects with this model.
     ready_status: &'static str,
+    streaming_supported: bool,
+    streaming_languages: Vec<String>,
 }
 
 impl Engine {
@@ -116,6 +118,13 @@ impl Engine {
         } else {
             None
         };
+        let capabilities = model.capabilities();
+        let streaming_supported = capabilities.supports_streaming
+            && model.variant().contains("nemotron-3.5")
+            && model.accepts_ext(
+                transcribe_cpp::ExtSlot::Stream,
+                transcribe_cpp::sys::TRANSCRIBE_EXT_KIND_PARAKEET_STREAM,
+            );
 
         log::info!(
             "engine: {} threads, task {:?}, single-pass decode: {}",
@@ -137,7 +146,56 @@ impl Engine {
             run_ext,
             chinese_converter,
             ready_status,
+            streaming_supported,
+            streaming_languages: capabilities.languages,
         })
+    }
+
+    pub fn supports_streaming(&self) -> bool {
+        self.streaming_supported
+    }
+
+    /// Begin the model-specific cache-aware streaming path. The returned
+    /// stream must remain on the same worker that owns this Engine borrow.
+    pub fn begin_streaming(&mut self) -> Result<transcribe_cpp::Stream<'_>, String> {
+        if !self.streaming_supported {
+            return Err("this model does not support keyboard streaming".into());
+        }
+        let stream = transcribe_cpp::StreamOptions {
+            commit_policy: transcribe_cpp::CommitPolicy::OnFinalize,
+            stable_prefix_agreement_n: 0,
+            family: Some(transcribe_cpp::StreamExtension::ParakeetStream(
+                transcribe_cpp::ParakeetStreamOptions {
+                    // The validated Nemotron setting is the default right
+                    // context (13 * 80 ms = 1.04 s lookahead).
+                    att_context_right: Some(13),
+                },
+            )),
+        };
+        if let Some(language) = self.language.clone() {
+            if !self
+                .streaming_languages
+                .iter()
+                .any(|supported| supported.eq_ignore_ascii_case(&language))
+            {
+                self.language = next_language_after_rejection(&language, self.language_strict)?;
+            }
+        }
+        let run = transcribe_cpp::RunOptions {
+            language: self.language.clone(),
+            task: self.task,
+            // Whisper's run extension belongs to the run slot and must not
+            // be passed to a stream.
+            family: None,
+            ..Default::default()
+        };
+        self.session
+            .stream(&run, &stream)
+            .map_err(|e| e.to_string())
+    }
+
+    pub fn convert_text(&self, text: &str) -> String {
+        self.chinese_converter.convert(text)
     }
 
     /// Transcribes 16 kHz mono f32 samples to text. Input longer than
