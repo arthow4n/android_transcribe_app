@@ -33,18 +33,15 @@
             android:visibility="gone"/>
     </LinearLayout>
 
-    <!-- The model is useful context even when the keyboard is idle; the live
-         metrics below it are populated while a recording is active. -->
-    <TextView
-        android:id="@+id/ime_model_text"
+    <!-- The active model is also a quick selector for installed models. -->
+    <Spinner
+        android:id="@+id/ime_model_spinner"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:singleLine="true"
-        android:ellipsize="end"
-        android:textColor="?attr/colorOnSurfaceVariant"
-        android:textAppearance="?attr/textAppearanceLabelSmall"
+        android:spinnerMode="dropdown"
         android:paddingStart="4dp"
-        android:paddingEnd="4dp"/>
+        android:paddingEnd="4dp"
+        android:contentDescription="@string/ime_model_selector"/>
 
     <TextView
         android:id="@+id/ime_stats_text"
@@ -197,6 +194,18 @@
             android:clickable="true"
             android:focusable="true"
             android:contentDescription="Backspace"/>
+
+        <ImageView
+            android:id="@+id/ime_select_all"
+            android:layout_width="64dp"
+            android:layout_height="44dp"
+            android:src="@drawable/ic_select_all"
+            android:scaleType="centerInside"
+            android:background="@drawable/bg_ime_key"
+            android:tint="?attr/colorOnSurfaceVariant"
+            android:clickable="true"
+            android:focusable="true"
+            android:contentDescription="@string/ime_select_all"/>
     </LinearLayout>
 
 </LinearLayout>

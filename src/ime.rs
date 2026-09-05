@@ -1,7 +1,7 @@
 use jni::objects::{JClass, JObject, JString};
 use jni::JNIEnv;
 use once_cell::sync::Lazy;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use crate::voice_session::{self, VoiceSessionState};
 
@@ -72,4 +72,29 @@ pub unsafe extern "system" fn Java_dev_notune_transcribe_RustInputMethodService_
         }
         Err(error) => log::error!("failed to read IME language: {error}"),
     }
+}
+
+/// Reload the shared engine after the keyboard selects a different installed
+/// model. The model picker runs in the app process, but the IME has its own
+/// native state and needs an explicit reload for the change to take effect.
+#[no_mangle]
+pub unsafe extern "system" fn Java_dev_notune_transcribe_RustInputMethodService_reloadModelNative(
+    env: JNIEnv,
+    service: JObject,
+) {
+    android_logger::init_once(
+        android_logger::Config::default().with_max_level(log::LevelFilter::Info),
+    );
+    let vm = match env.get_java_vm() {
+        Ok(vm) => Arc::new(vm),
+        Err(_) => return,
+    };
+    let service_ref = match env.new_global_ref(&service) {
+        Ok(r) => r,
+        Err(_) => return,
+    };
+    std::thread::spawn(move || {
+        crate::engine::reset();
+        let _ = crate::engine::ensure_loaded_from_thread(&vm, &service_ref);
+    });
 }

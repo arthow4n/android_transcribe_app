@@ -28,6 +28,9 @@
     <string name="setting_select_transcription">Seleziona trascrizione</string>
     <string name="setting_select_transcription_desc">Evidenzia il testo trascritto così da poterlo eliminare con un solo tasto indietro</string>
 
+    <string name="setting_append_space">Aggiungi uno spazio</string>
+    <string name="setting_append_space_desc">Aggiungi uno spazio dopo il testo inserito dalla tastiera vocale</string>
+
     <string name="setting_pause_audio">Metti in pausa l\'audio</string>
     <string name="setting_pause_audio_desc">Metti in pausa l\'audio durante la registrazione</string>
 

@@ -11,6 +11,8 @@
     <string name="ime_language_zh_tw">ZH-TW</string>
     <string name="ime_language_en">EN</string>
     <string name="ime_model_format">Model: %1$s</string>
+    <string name="ime_model_selector">Select speech model</string>
+    <string name="ime_select_all">Select all text</string>
     <string name="ime_stats_format">Elapsed %1$s · %2$d words · Now %3$s · Avg %4$s</string>
     
     <string name="section_subs">Live Subtitles</string>
@@ -33,6 +35,9 @@
 
     <string name="setting_select_transcription">Select transcription</string>
     <string name="setting_select_transcription_desc">Highlight transcribed text so it can be deleted with a single backspace</string>
+
+    <string name="setting_append_space">Append a space</string>
+    <string name="setting_append_space_desc">Add a space after text inserted by the voice keyboard</string>
 
     <string name="setting_pause_audio">Pause audio</string>
     <string name="setting_pause_audio_desc">Pause audio while recording</string>

@@ -92,6 +92,7 @@ public class MainActivity extends AppCompatActivity {
         // process and native code without a content provider).
         bindMarkerSwitch(R.id.switch_auto_record, "auto_record", false);
         bindMarkerSwitch(R.id.switch_select_transcription, "select_transcription", false);
+        bindMarkerSwitch(R.id.switch_append_space, "append_space", false);
         bindMarkerSwitch(R.id.switch_pause_audio, "pause_audio", false);
         // Record-in-background defaults to ON; its marker file is the opt-out.
         bindMarkerSwitch(R.id.switch_record_background, "stop_on_hide", true);

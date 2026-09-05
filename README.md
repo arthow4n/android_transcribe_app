@@ -56,6 +56,8 @@ Tap **Try voice input** on the home screen to test the whole flow in one tap.
 
 Prefer voice input as its own keyboard? Enable the **Offline Voice Input** keyboard via *Open Keyboard Settings* on the home screen, switch to it from your keyboard switcher, then tap **Tap to Record**. By default the recording keeps running even if you switch apps or the keyboard closes (turn off *Record in background* in settings if you don't want that) — the text is inserted when you come back.
 
+The keyboard's model selector switches between the built-in model and imported models without leaving the keyboard. The **Select all** key selects the current field so the adjacent **Backspace** key can remove it. Enable *Append a space* in the app settings if you want each recognized result to end with a space.
+
 ### Live subtitles
 
 Tap **Start Live Subtitles** and choose *Share entire screen* to get real-time, on-device captions for any audio or video playing on your device.

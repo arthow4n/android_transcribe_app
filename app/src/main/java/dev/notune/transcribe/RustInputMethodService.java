@@ -7,6 +7,9 @@ import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.ArrayAdapter;
+import android.widget.AdapterView;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.ProgressBar;
 import android.os.Handler;
@@ -22,6 +25,8 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 
 import com.google.android.material.color.DynamicColors;
 import com.google.android.material.color.MaterialColors;
@@ -41,7 +46,7 @@ public class RustInputMethodService extends InputMethodService {
     }
 
     private TextView statusView;
-    private TextView modelView;
+    private Spinner modelSpinner;
     private TextView statsView;
     private TextView hintView;
     private View recordContainer;
@@ -55,6 +60,9 @@ public class RustInputMethodService extends InputMethodService {
     private MicLevelView micLevelView;
     private View recordCircle;
     private MaterialButtonToggleGroup languageGroup;
+    private ArrayAdapter<String> modelAdapter;
+    private final ArrayList<String> modelFiles = new ArrayList<>();
+    private boolean updatingModelSpinner = false;
     // Night flag the current input view was inflated with, so it can be rebuilt
     // if the theme preference changes while this process stays alive.
     private boolean viewIsNight = false;
@@ -143,7 +151,7 @@ public class RustInputMethodService extends InputMethodService {
             });
 
             statusView = view.findViewById(R.id.ime_status_text);
-            modelView = view.findViewById(R.id.ime_model_text);
+            modelSpinner = view.findViewById(R.id.ime_model_spinner);
             statsView = view.findViewById(R.id.ime_stats_text);
             progressBar = view.findViewById(R.id.ime_progress);
             recordContainer = view.findViewById(R.id.ime_record_container);
@@ -152,12 +160,16 @@ public class RustInputMethodService extends InputMethodService {
             recordCircle = view.findViewById(R.id.ime_record_circle);
             hintView = view.findViewById(R.id.ime_hint);
             backspaceButton = view.findViewById(R.id.ime_backspace);
+            View selectAllButton = view.findViewById(R.id.ime_select_all);
             spaceButton = view.findViewById(R.id.ime_space);
             enterButton = view.findViewById(R.id.ime_enter);
             switchKeyboardButton = view.findViewById(R.id.ime_switch_keyboard);
             languageGroup = view.findViewById(R.id.ime_language_group);
 
+            setupModelSpinner();
             setupLanguageShortcuts();
+
+            selectAllButton.setOnClickListener(v -> selectAllText());
 
             switchKeyboardButton.setOnClickListener(v -> {
                 if (isRecording) {
@@ -302,6 +314,7 @@ public class RustInputMethodService extends InputMethodService {
         super.onWindowShown();
         boolean wasVisible = windowVisible;
         windowVisible = true;
+        if (!isRecording) refreshModelSpinner();
         if (isRecording) {
             // A background recording is still running (record-in-background
             // setting): restore the recording UI.
@@ -537,7 +550,7 @@ public class RustInputMethodService extends InputMethodService {
         boolean isError = lastStatus.startsWith("Error");
         boolean isReady = lastStatus.equals("Ready");
 
-        updateModelView();
+        refreshModelSpinner();
         updateStatsView();
 
         // Don't show internal loading states to the user
@@ -571,6 +584,10 @@ public class RustInputMethodService extends InputMethodService {
             languageGroup.setAlpha(disable ? 0.5f : 1.0f);
         }
 
+        // Switching models resets the shared native engine, so keep the
+        // selector unavailable while a recording or model load is in flight.
+        updateModelSelectorState(isRecording || isLoading || isTranscribing || isWaiting);
+
         if (hintView != null && !isRecording) {
             hintView.setText("Tap to Record");
         }
@@ -594,7 +611,8 @@ public class RustInputMethodService extends InputMethodService {
                 }
                 return;
             }
-            String committed = text + " ";
+            String committed = appendSpaceEnabled() && !Character.isWhitespace(
+                    text.charAt(text.length() - 1)) ? text + " " : text;
             InputConnection ic = getCurrentInputConnection();
             if (inputActive && ic != null) {
                 commitTranscribedText(ic, committed);
@@ -671,11 +689,99 @@ public class RustInputMethodService extends InputMethodService {
         return lastStatus.contains("Processing") || lastStatus.contains("Transcribing");
     }
 
-    private void updateModelView() {
-        if (modelView == null) return;
+    private void setupModelSpinner() {
+        modelAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item,
+                new ArrayList<>());
+        modelAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        modelSpinner.setAdapter(modelAdapter);
+        modelSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                if (updatingModelSpinner || position < 0 || position >= modelFiles.size()) return;
+                if (isRecording || isProcessingStatus()) {
+                    refreshModelSpinner();
+                    return;
+                }
+
+                String selected = modelFiles.get(position);
+                String current = readConfig("active_model");
+                boolean same = selected == null ? current.isEmpty() : selected.equals(current);
+                if (same) return;
+
+                writeConfig("active_model", selected == null ? "" : selected);
+                String saved = readConfig("active_model");
+                boolean savedMatches = selected == null ? saved.isEmpty() : selected.equals(saved);
+                if (!savedMatches) {
+                    refreshModelSpinner();
+                    return;
+                }
+
+                lastStatus = "Loading model...";
+                updateUiState();
+                try {
+                    reloadModelNative();
+                } catch (Throwable t) {
+                    Log.e(TAG, "Could not reload selected keyboard model", t);
+                    onStatusUpdate("Error: could not reload model");
+                }
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+            }
+        });
+        refreshModelSpinner();
+    }
+
+    /** Refreshes the dropdown from model files shared with ModelsActivity. */
+    private void refreshModelSpinner() {
+        if (modelSpinner == null || modelAdapter == null) return;
+
         String active = readConfig("active_model");
-        String model = active.isEmpty() ? "Parakeet TDT 0.6B v3" : stripModelExtension(active);
-        modelView.setText(getString(R.string.ime_model_format, model));
+        List<String> names = new ArrayList<>();
+        File dir = new File(getFilesDir(), "models");
+        File[] files = dir.listFiles((d, name) -> isModelFileName(name));
+        if (files != null) {
+            for (File file : files) names.add(file.getName());
+        }
+        names.sort(String.CASE_INSENSITIVE_ORDER);
+
+        modelFiles.clear();
+        modelFiles.add(null); // Built-in Parakeet model.
+        List<String> labels = new ArrayList<>();
+        labels.add(getString(R.string.models_builtin));
+        for (String name : names) {
+            modelFiles.add(name);
+            labels.add(stripModelExtension(name));
+        }
+
+        int selected = active.isEmpty() ? 0 : modelFiles.indexOf(active);
+        if (selected < 0) selected = 0;
+
+        updatingModelSpinner = true;
+        modelAdapter.clear();
+        modelAdapter.addAll(labels);
+        modelAdapter.notifyDataSetChanged();
+        modelSpinner.setSelection(selected, false);
+        updatingModelSpinner = false;
+    }
+
+    private static boolean isModelFileName(String name) {
+        if (name == null) return false;
+        String lower = name.toLowerCase(java.util.Locale.ROOT);
+        return lower.endsWith(".gguf") || lower.endsWith(".bin");
+    }
+
+    private void selectAllText() {
+        InputConnection ic = getCurrentInputConnection();
+        if (ic == null) return;
+        if (!ic.performContextMenuAction(android.R.id.selectAll)) {
+            android.view.inputmethod.ExtractedText et = ic.getExtractedText(
+                    new android.view.inputmethod.ExtractedTextRequest(), 0);
+            if (et != null && et.text != null) {
+                ic.setSelection(0, et.text.length());
+            }
+        }
     }
 
     private static String stripModelExtension(String name) {
@@ -739,6 +845,10 @@ public class RustInputMethodService extends InputMethodService {
         return new File(getFilesDir(), "pause_audio").exists();
     }
 
+    private boolean appendSpaceEnabled() {
+        return new File(getFilesDir(), "append_space").exists();
+    }
+
     private boolean isStreamingEnabled() {
         return new File(getFilesDir(), "ime_streaming").exists();
     }
@@ -747,4 +857,12 @@ public class RustInputMethodService extends InputMethodService {
     private boolean isStopOnHideEnabled() {
         return new File(getFilesDir(), "stop_on_hide").exists();
     }
+
+    private void updateModelSelectorState(boolean disabled) {
+        if (modelSpinner == null) return;
+        modelSpinner.setEnabled(!disabled);
+        modelSpinner.setAlpha(disabled ? 0.5f : 1.0f);
+    }
+
+    private native void reloadModelNative();
 }

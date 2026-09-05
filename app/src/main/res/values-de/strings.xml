@@ -28,6 +28,9 @@
     <string name="setting_select_transcription">Transkription markieren</string>
     <string name="setting_select_transcription_desc">Transkribierten Text markieren, damit er mit einem einzigen Löschen entfernt werden kann</string>
 
+    <string name="setting_append_space">Leerzeichen anhängen</string>
+    <string name="setting_append_space_desc">Nach Spracheingabe über die Tastatur ein Leerzeichen einfügen</string>
+
     <string name="setting_pause_audio">Audio pausieren</string>
     <string name="setting_pause_audio_desc">Audio während der Aufnahme pausieren</string>
 
