@@ -690,9 +690,10 @@ public class RustInputMethodService extends InputMethodService {
     }
 
     private void setupModelSpinner() {
-        modelAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item,
+        modelAdapter = new ArrayAdapter<>(modelSpinner.getContext(),
+                R.layout.ime_model_spinner_item,
                 new ArrayList<>());
-        modelAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        modelAdapter.setDropDownViewResource(R.layout.ime_model_spinner_dropdown_item);
         modelSpinner.setAdapter(modelAdapter);
         modelSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override

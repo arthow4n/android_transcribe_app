@@ -41,6 +41,7 @@
         android:spinnerMode="dropdown"
         android:paddingStart="4dp"
         android:paddingEnd="4dp"
+        android:backgroundTint="?attr/colorOnSurfaceVariant"
         android:contentDescription="@string/ime_model_selector"/>
 
     <TextView
