@@ -485,16 +485,48 @@ public class RustInputMethodService extends InputMethodService {
                 return;
             }
             if (selected.equals(readConfig("model_language"))) return;
-            if (!writeConfig("model_language", selected)) {
-                Log.e(TAG, "Could not save keyboard language " + selected);
-                return;
-            }
-            try {
-                setLanguageNative(selected);
-            } catch (Throwable t) {
-                Log.e(TAG, "Could not update native keyboard language", t);
+
+            Boolean modelChanged = applyLanguageSelection(selected);
+            if (modelChanged == null) return;
+            refreshModelSpinner();
+            if (modelChanged) {
+                lastStatus = "Loading model...";
+                updateUiState();
+                try {
+                    reloadModelNative();
+                } catch (Throwable t) {
+                    Log.e(TAG, "Could not reload keyboard model for language " + selected, t);
+                    onStatusUpdate("Error: could not reload model");
+                }
+            } else {
+                try {
+                    setLanguageNative(selected);
+                } catch (Throwable t) {
+                    Log.e(TAG, "Could not update native keyboard language", t);
+                }
             }
         });
+    }
+
+    /** Saves the current model for the old language and resolves the new one. */
+    private Boolean applyLanguageSelection(String selectedLanguage) {
+        String previousLanguage = readConfig("model_language");
+        String storedCurrent = readConfig("active_model");
+        String current = LanguageModelPrefs.isInstalledModel(this, storedCurrent)
+                ? storedCurrent : "";
+        LanguageModelPrefs.write(this, previousLanguage, current);
+
+        String remembered = LanguageModelPrefs.read(this, selectedLanguage);
+        String target = current;
+        if (remembered != null && LanguageModelPrefs.isInstalledModel(this, remembered)) {
+            target = remembered;
+        }
+
+        boolean modelChanged = !target.equals(storedCurrent);
+        if (modelChanged && !writeConfig("active_model", target)) return null;
+        if (!writeConfig("model_language", selectedLanguage)) return null;
+        LanguageModelPrefs.write(this, selectedLanguage, target);
+        return modelChanged;
     }
 
     private String readConfig(String name) {
@@ -716,6 +748,9 @@ public class RustInputMethodService extends InputMethodService {
                     refreshModelSpinner();
                     return;
                 }
+                LanguageModelPrefs.write(RustInputMethodService.this,
+                        readConfig("model_language"),
+                        selected == null ? "" : selected);
 
                 lastStatus = "Loading model...";
                 updateUiState();

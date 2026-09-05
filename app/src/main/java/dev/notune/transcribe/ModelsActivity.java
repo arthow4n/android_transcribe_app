@@ -47,6 +47,7 @@ import java.util.Locale;
  *   - {@code active_model}: file name of the imported model under
  *     {@code files/models/}, absent/empty = built-in model.
  *   - {@code model_language}: optional language hint for imported models.
+ *   - {@code language_models/}: last selected model for each language preset.
  *   - {@code model_language_strict}: prevents fallback to automatic detection.
  *   - {@code chinese_output}: optional post-processing target for Chinese text.
  */
@@ -202,8 +203,11 @@ public class ModelsActivity extends AppCompatActivity {
                 String tag = tags.get(position);
                 strictLanguageSwitch.setEnabled(!tag.isEmpty());
                 if (tag.equals(readConfig("model_language"))) return;
+
+                boolean modelChanged = applyLanguageSelection(tag);
                 writeConfig("model_language", tag);
                 snackbar(getString(R.string.models_language_saved));
+                if (modelChanged) refreshList();
                 statusText.setText(getString(R.string.models_loading));
                 reloadModelNative(ModelsActivity.this);
             }
@@ -212,6 +216,29 @@ public class ModelsActivity extends AppCompatActivity {
             public void onNothingSelected(AdapterView<?> parent) {
             }
         });
+    }
+
+    /**
+     * Remembers the current model for the previous language and resolves the
+     * preset for the newly selected language. The caller reloads the engine
+     * afterwards so both the language and model take effect together.
+     */
+    private boolean applyLanguageSelection(String language) {
+        String previousLanguage = readConfig("model_language");
+        String storedCurrent = readConfig("active_model");
+        String current = storedCurrent;
+        if (!LanguageModelPrefs.isInstalledModel(this, current)) current = "";
+        LanguageModelPrefs.write(this, previousLanguage, current);
+
+        String remembered = LanguageModelPrefs.read(this, language);
+        String target = current;
+        if (remembered != null && LanguageModelPrefs.isInstalledModel(this, remembered)) {
+            target = remembered;
+        }
+        boolean modelChanged = !target.equals(storedCurrent);
+        if (modelChanged) writeConfig("active_model", target);
+        LanguageModelPrefs.write(this, language, target);
+        return modelChanged;
     }
 
     // --- Chinese output conversion -----------------------------------------
@@ -316,16 +343,17 @@ public class ModelsActivity extends AppCompatActivity {
         }
     }
 
-    private void writeConfig(String name, String value) {
+    private boolean writeConfig(String name, String value) {
         File f = new File(getFilesDir(), name);
         if (value == null || value.isEmpty()) {
-            f.delete();
-            return;
+            return !f.exists() || f.delete();
         }
         try (OutputStream os = new FileOutputStream(f)) {
             os.write(value.getBytes(StandardCharsets.UTF_8));
+            return true;
         } catch (IOException e) {
             Log.e(TAG, "Failed to write " + name, e);
+            return false;
         }
     }
 
@@ -343,6 +371,7 @@ public class ModelsActivity extends AppCompatActivity {
         // If the active model's file has disappeared, fall back to built-in.
         if (!active.isEmpty() && !names.contains(active)) {
             writeConfig("active_model", "");
+            LanguageModelPrefs.write(this, readConfig("model_language"), "");
             active = "";
         }
 
@@ -378,7 +407,9 @@ public class ModelsActivity extends AppCompatActivity {
     }
 
     private void selectModel(String fileNameOrNull) {
-        writeConfig("active_model", fileNameOrNull == null ? "" : fileNameOrNull);
+        String selected = fileNameOrNull == null ? "" : fileNameOrNull;
+        if (!writeConfig("active_model", selected)) return;
+        LanguageModelPrefs.write(this, readConfig("model_language"), selected);
         refreshList();
         statusText.setText(getString(R.string.models_loading));
         reloadModelNative(this);
