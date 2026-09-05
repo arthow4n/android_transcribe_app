@@ -78,9 +78,11 @@ public class RustInputMethodService extends InputMethodService {
     // the main-thread ticker owns elapsed-time rendering so it stays smooth
     // even when native inference is busy.
     private long recordingStartedAtMs = 0L;
+    private long processedAudioMs = 0L;
     private int processedWords = 0;
-    private float processingSpeed = 0f;
-    private boolean streamingStatsReceived = false;
+    private float currentProcessingSpeed = -1f;
+    private float averageProcessingSpeed = -1f;
+    private long lastStreamingStatsAtMs = 0L;
     private final Runnable statsTicker = new Runnable() {
         @Override
         public void run() {
@@ -382,9 +384,11 @@ public class RustInputMethodService extends InputMethodService {
         isRecording = recording;
         if (recording && !wasRecording) {
             recordingStartedAtMs = android.os.SystemClock.elapsedRealtime();
+            processedAudioMs = 0L;
             processedWords = 0;
-            processingSpeed = 0f;
-            streamingStatsReceived = false;
+            currentProcessingSpeed = -1f;
+            averageProcessingSpeed = -1f;
+            lastStreamingStatsAtMs = 0L;
             updateStatsView();
             mainHandler.removeCallbacks(statsTicker);
             mainHandler.post(statsTicker);
@@ -429,6 +433,7 @@ public class RustInputMethodService extends InputMethodService {
     @Override
     public void onDestroy() {
         super.onDestroy();
+        if (mainHandler != null) mainHandler.removeCallbacks(statsTicker);
         cleanupNative();
         if (pauseAudioActive) {
             audioPauser.abandon(this);
@@ -509,8 +514,12 @@ public class RustInputMethodService extends InputMethodService {
             if (status != null && status.startsWith("Error") && isRecording) {
                 updateRecordButtonUI(false);
             }
+            if (status != null && (status.startsWith("Error")
+                    || "Canceled".equals(status) || "Ready".equals(status))) {
+                mainHandler.removeCallbacks(statsTicker);
+            }
             updateUiState();
-            if (pendingSwitchBack && status.startsWith("Error")) {
+            if (pendingSwitchBack && status != null && status.startsWith("Error")) {
                 pendingSwitchBack = false;
                 switchToPreviousInputMethod();
             }
@@ -646,11 +655,14 @@ public class RustInputMethodService extends InputMethodService {
     }
 
     /** Called from the native streaming worker at a throttled cadence. */
-    public void onStreamingStats(long processedAudioMs, int words, float speed) {
+    public void onStreamingStats(long processedAudioMs, int words,
+            float currentSpeed, float averageSpeed) {
         mainHandler.post(() -> {
+            this.processedAudioMs = Math.max(0L, processedAudioMs);
             processedWords = Math.max(0, words);
-            processingSpeed = Math.max(0f, speed);
-            streamingStatsReceived = true;
+            currentProcessingSpeed = sanitizeSpeed(currentSpeed);
+            averageProcessingSpeed = sanitizeSpeed(averageSpeed);
+            lastStreamingStatsAtMs = android.os.SystemClock.elapsedRealtime();
             updateStatsView();
         });
     }
@@ -679,10 +691,12 @@ public class RustInputMethodService extends InputMethodService {
         long elapsedMs = recordingStartedAtMs == 0L
                 ? 0L
                 : Math.max(0L, android.os.SystemClock.elapsedRealtime() - recordingStartedAtMs);
-        statsView.setText(streamingStatsReceived
-                ? getString(R.string.ime_stats_format, formatElapsed(elapsedMs),
-                        processedWords, processingSpeed)
-                : getString(R.string.ime_stats_no_speed, formatElapsed(elapsedMs), processedWords));
+        long nowMs = android.os.SystemClock.elapsedRealtime();
+        boolean currentRateFresh = lastStreamingStatsAtMs > 0L
+                && nowMs - lastStreamingStatsAtMs <= 2_000L;
+        statsView.setText(getString(R.string.ime_stats_format, formatElapsed(elapsedMs),
+                processedWords, formatSpeed(currentRateFresh ? currentProcessingSpeed : -1f),
+                formatSpeed(averageProcessingSpeed)));
     }
 
     private void hideStatsIfIdle() {
@@ -701,6 +715,17 @@ public class RustInputMethodService extends InputMethodService {
             return String.format(java.util.Locale.ROOT, "%d:%02d:%02d", hours, minutes, seconds);
         }
         return String.format(java.util.Locale.ROOT, "%02d:%02d", minutes, seconds);
+    }
+
+    private static float sanitizeSpeed(float speed) {
+        return (speed > 0f && !Float.isNaN(speed) && !Float.isInfinite(speed))
+                ? speed : -1f;
+    }
+
+    private static String formatSpeed(float speed) {
+        if (speed < 0f || Float.isNaN(speed) || Float.isInfinite(speed)) return "—";
+        if (speed < 0.1f) return "<0.1×";
+        return String.format(java.util.Locale.ROOT, "%.1f×", speed);
     }
 
     private boolean isPauseAudioEnabled() {

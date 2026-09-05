@@ -4,6 +4,7 @@
 //! inference. A worker thread owns the borrowed transcribe-cpp Stream for its
 //! entire lifetime and sends one final result to the Java keyboard callback.
 
+use std::collections::VecDeque;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, SyncSender, TryRecvError, TrySendError};
@@ -18,6 +19,8 @@ use crate::engine;
 /// Maximum queued PCM. At 16 kHz this is 30 seconds of audio.
 pub const MAX_QUEUED_SAMPLES: usize = 30 * 16_000;
 const AUDIO_CHUNK_SAMPLES: usize = 1_600; // 100 ms
+const SAMPLE_RATE: f64 = 16_000.0;
+const SPEED_WINDOW_AUDIO_SECS: f64 = 2.0;
 
 pub struct StreamingControl {
     sender: SyncSender<Vec<f32>>,
@@ -118,18 +121,28 @@ fn notify_text(jvm: &JavaVM, target: &GlobalRef, text: &str) {
     }
 }
 
-fn notify_stats(jvm: &JavaVM, target: &GlobalRef, processed_audio_ms: i64, words: usize, speed: f32) {
+fn notify_stats(
+    jvm: &JavaVM,
+    target: &GlobalRef,
+    processed_audio_ms: i64,
+    words: usize,
+    current_speed: f32,
+    average_speed: f32,
+) {
     if let Ok(mut env) = jvm.attach_current_thread() {
-        let _ = env.call_method(
+        if let Err(error) = env.call_method(
             target.as_obj(),
             "onStreamingStats",
-            "(JIF)V",
+            "(JIFF)V",
             &[
                 processed_audio_ms.into(),
                 (words.min(i32::MAX as usize) as i32).into(),
-                speed.into(),
+                current_speed.into(),
+                average_speed.into(),
             ],
-        );
+        ) {
+            log::warn!("streaming stats callback failed: {error}");
+        }
     }
 }
 
@@ -139,6 +152,79 @@ fn notify_stats(jvm: &JavaVM, target: &GlobalRef, processed_audio_ms: i64, words
 /// be inserted when the recording is finalized.
 fn count_words(text: &str) -> usize {
     text.split_whitespace().count()
+}
+
+/// Measures decoder throughput independently of microphone and queue timing.
+/// The rolling window is intentionally audio-based: a single feed can be a
+/// cheap buffering call or an expensive model step, so a one-call rate is too
+/// noisy to be useful in the keyboard.
+#[derive(Debug, Default)]
+struct ProcessingStats {
+    audio_secs: f64,
+    processing_secs: f64,
+    recent: VecDeque<(f64, f64)>,
+}
+
+impl ProcessingStats {
+    fn record_feed(&mut self, audio_secs: f64, processing_secs: f64) {
+        self.audio_secs += audio_secs;
+        self.processing_secs += processing_secs;
+        self.recent.push_back((audio_secs, processing_secs));
+        self.trim_recent();
+    }
+
+    /// Finalization consumes audio already counted by `record_feed`, so only
+    /// its compute time is added. Attach it to the newest window entry so the
+    /// final current-rate reading includes the flush cost without duplicating
+    /// any audio duration.
+    fn record_finalize(&mut self, processing_secs: f64) {
+        self.processing_secs += processing_secs;
+        if let Some((_, recent_processing)) = self.recent.back_mut() {
+            *recent_processing += processing_secs;
+        }
+    }
+
+    fn rates(&self) -> (f32, f32) {
+        if self.audio_secs < SPEED_WINDOW_AUDIO_SECS || self.processing_secs <= 0.0 {
+            return (-1.0, -1.0);
+        }
+        let recent_audio: f64 = self.recent.iter().map(|(audio, _)| *audio).sum();
+        let recent_processing: f64 = self.recent.iter().map(|(_, processing)| *processing).sum();
+        let current = if recent_processing > 0.0 {
+            recent_audio / recent_processing
+        } else {
+            -1.0
+        };
+        let average = self.audio_secs / self.processing_secs;
+        (finite_rate(current), finite_rate(average))
+    }
+
+    fn audio_ms(&self) -> i64 {
+        (self.audio_secs * 1000.0)
+            .round()
+            .clamp(0.0, i64::MAX as f64) as i64
+    }
+
+    fn trim_recent(&mut self) {
+        let mut recent_audio: f64 = self.recent.iter().map(|(audio, _)| *audio).sum();
+        while recent_audio - self.recent.front().map(|(audio, _)| *audio).unwrap_or(0.0)
+            >= SPEED_WINDOW_AUDIO_SECS
+        {
+            if let Some((audio, _)) = self.recent.pop_front() {
+                recent_audio -= audio;
+            } else {
+                break;
+            }
+        }
+    }
+}
+
+fn finite_rate(rate: f64) -> f32 {
+    if rate.is_finite() && rate > 0.0 {
+        rate.min(f32::MAX as f64) as f32
+    } else {
+        -1.0
+    }
 }
 
 /// Start a worker for an already loaded streaming-capable engine.
@@ -185,8 +271,9 @@ fn run_worker(
     target: &GlobalRef,
 ) -> Result<Option<String>, String> {
     let mut stream = engine.begin_streaming()?;
-    let started = Instant::now();
     let mut last_stats = Instant::now();
+    let mut last_stats_log = Instant::now();
+    let mut stats = ProcessingStats::default();
     let mut finalizing = false;
     loop {
         if control.cancel_requested.load(Ordering::Acquire) {
@@ -217,20 +304,34 @@ fn run_worker(
                 if samples.is_empty() {
                     continue;
                 }
-                let update = stream.feed(&samples).map_err(|e| e.to_string())?;
+                let feed_started = Instant::now();
+                stream.feed(&samples).map_err(|e| e.to_string())?;
+                stats.record_feed(
+                    samples.len() as f64 / SAMPLE_RATE,
+                    feed_started.elapsed().as_secs_f64(),
+                );
                 // Keep JNI traffic low enough for the audio thread and main
                 // looper while still making the keyboard feel live.
                 if last_stats.elapsed() >= Duration::from_millis(250) {
                     let snapshot = stream.text();
-                    let elapsed = started.elapsed().as_secs_f32().max(0.001);
-                    let speed = (update.input_received_ms.max(0) as f32 / 1000.0) / elapsed;
+                    let (current_speed, average_speed) = stats.rates();
                     notify_stats(
                         &jvm,
                         &target,
-                        update.input_received_ms,
+                        stats.audio_ms(),
                         count_words(&snapshot.full),
-                        speed,
+                        current_speed,
+                        average_speed,
                     );
+                    if last_stats_log.elapsed() >= Duration::from_secs(1) {
+                        log::debug!(
+                            "stream metrics: audio={}ms current={:.3}x average={:.3}x",
+                            stats.audio_ms(),
+                            current_speed,
+                            average_speed
+                        );
+                        last_stats_log = Instant::now();
+                    }
                     last_stats = Instant::now();
                 }
             }
@@ -240,16 +341,24 @@ fn run_worker(
                         stream.reset();
                         return Err("streaming audio buffer filled; try a shorter recording".into());
                     }
-                    let update = stream.finalize().map_err(|e| e.to_string())?;
+                    let finalize_started = Instant::now();
+                    stream.finalize().map_err(|e| e.to_string())?;
+                    stats.record_finalize(finalize_started.elapsed().as_secs_f64());
                     let snapshot = stream.text();
-                    let elapsed = started.elapsed().as_secs_f32().max(0.001);
-                    let speed = (update.input_received_ms.max(0) as f32 / 1000.0) / elapsed;
+                    let (current_speed, average_speed) = stats.rates();
                     notify_stats(
                         &jvm,
                         &target,
-                        update.input_received_ms,
+                        stats.audio_ms(),
                         count_words(&snapshot.full),
-                        speed,
+                        current_speed,
+                        average_speed,
+                    );
+                    log::debug!(
+                        "stream metrics final: audio={}ms current={:.3}x average={:.3}x",
+                        stats.audio_ms(),
+                        current_speed,
+                        average_speed
                     );
                     let text = snapshot.full;
                     drop(stream);
@@ -318,5 +427,33 @@ mod tests {
         assert!(control.producer_done.load(Ordering::Acquire));
         control.cancel();
         assert!(control.cancel_requested.load(Ordering::Acquire));
+    }
+
+    #[test]
+    fn processing_rates_ignore_capture_idle_time() {
+        let mut stats = ProcessingStats::default();
+        stats.record_feed(1.0, 0.5);
+        stats.record_feed(1.0, 0.5);
+        let (current, average) = stats.rates();
+        assert!((current - 2.0).abs() < f32::EPSILON);
+        assert!((average - 2.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn processing_rates_are_unavailable_during_warmup() {
+        let mut stats = ProcessingStats::default();
+        stats.record_feed(1.9, 0.5);
+        assert_eq!(stats.rates(), (-1.0, -1.0));
+    }
+
+    #[test]
+    fn finalization_adds_compute_time_without_audio_duplication() {
+        let mut stats = ProcessingStats::default();
+        stats.record_feed(2.0, 1.0);
+        stats.record_finalize(1.0);
+        assert_eq!(stats.audio_ms(), 2_000);
+        let (current, average) = stats.rates();
+        assert!((current - 1.0).abs() < f32::EPSILON);
+        assert!((average - 1.0).abs() < f32::EPSILON);
     }
 }

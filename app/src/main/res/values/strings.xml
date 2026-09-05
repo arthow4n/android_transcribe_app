@@ -11,8 +11,7 @@
     <string name="ime_language_zh_tw">ZH-TW</string>
     <string name="ime_language_en">EN</string>
     <string name="ime_model_format">Model: %1$s</string>
-    <string name="ime_stats_format">Elapsed %1$s · %2$d words · %3$.1f× real time</string>
-    <string name="ime_stats_no_speed">Elapsed %1$s · %2$d words · speed —</string>
+    <string name="ime_stats_format">Elapsed %1$s · %2$d words · Now %3$s · Avg %4$s</string>
     
     <string name="section_subs">Live Subtitles</string>
     <string name="desc_subs">Display subtitles for any audio playing on your device. After starting, select \'Share entire screen\' for best results.</string>
