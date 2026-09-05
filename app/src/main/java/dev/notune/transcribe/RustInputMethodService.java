@@ -41,6 +41,8 @@ public class RustInputMethodService extends InputMethodService {
     }
 
     private TextView statusView;
+    private TextView modelView;
+    private TextView statsView;
     private TextView hintView;
     private View recordContainer;
     private android.widget.ImageView micIcon;
@@ -72,6 +74,22 @@ public class RustInputMethodService extends InputMethodService {
     // non-null no-op connection when nothing is focused, so commitText would be
     // silently dropped.
     private boolean inputActive = false;
+    // Live recording metrics. Audio processing happens on the Rust worker;
+    // the main-thread ticker owns elapsed-time rendering so it stays smooth
+    // even when native inference is busy.
+    private long recordingStartedAtMs = 0L;
+    private int processedWords = 0;
+    private float processingSpeed = 0f;
+    private boolean streamingStatsReceived = false;
+    private final Runnable statsTicker = new Runnable() {
+        @Override
+        public void run() {
+            if (isRecording || isProcessingStatus()) {
+                updateStatsView();
+                mainHandler.postDelayed(this, 250L);
+            }
+        }
+    };
     // Whether the keyboard window is currently on screen. Some frameworks
     // (notably OEM builds) call onWindowShown again for events that don't
     // follow an onWindowHidden, e.g. tapping the text area to move the
@@ -123,6 +141,8 @@ public class RustInputMethodService extends InputMethodService {
             });
 
             statusView = view.findViewById(R.id.ime_status_text);
+            modelView = view.findViewById(R.id.ime_model_text);
+            statsView = view.findViewById(R.id.ime_stats_text);
             progressBar = view.findViewById(R.id.ime_progress);
             recordContainer = view.findViewById(R.id.ime_record_container);
             micIcon = view.findViewById(R.id.ime_mic_icon);
@@ -259,8 +279,8 @@ public class RustInputMethodService extends InputMethodService {
                         audioPauser.request(this);
                         pauseAudioActive = true;
                     }
-                    startRecording(isStreamingEnabled());
                     updateRecordButtonUI(true);
+                    startRecording(isStreamingEnabled());
                 }
             });
 
@@ -298,8 +318,8 @@ public class RustInputMethodService extends InputMethodService {
                     audioPauser.request(this);
                     pauseAudioActive = true;
                 }
-                startRecording(isStreamingEnabled());
                 updateRecordButtonUI(true);
+                startRecording(isStreamingEnabled());
             }
         }
     }
@@ -358,7 +378,21 @@ public class RustInputMethodService extends InputMethodService {
     }
 
     private void updateRecordButtonUI(boolean recording) {
+        boolean wasRecording = isRecording;
         isRecording = recording;
+        if (recording && !wasRecording) {
+            recordingStartedAtMs = android.os.SystemClock.elapsedRealtime();
+            processedWords = 0;
+            processingSpeed = 0f;
+            streamingStatsReceived = false;
+            updateStatsView();
+            mainHandler.removeCallbacks(statsTicker);
+            mainHandler.post(statsTicker);
+        } else if (!recording && wasRecording) {
+            // Keep the final metrics visible during the short native finalize
+            // phase; the ticker stops once the status returns to Ready.
+            updateStatsView();
+        }
         // Keep the screen awake while recording so it never sleeps mid-capture
         // and cuts the recording short. Cleared automatically once we stop.
         if (inputView != null) {
@@ -494,6 +528,9 @@ public class RustInputMethodService extends InputMethodService {
         boolean isError = lastStatus.startsWith("Error");
         boolean isReady = lastStatus.equals("Ready");
 
+        updateModelView();
+        updateStatsView();
+
         // Don't show internal loading states to the user
         if (statusView != null && !isRecording) {
             if (isError) {
@@ -537,6 +574,7 @@ public class RustInputMethodService extends InputMethodService {
                 // Nothing recognized — don't insert a stray space.
                 updateRecordButtonUI(false);
                 if (statusView != null) statusView.setText("Tap to Record");
+                hideStatsIfIdle();
                 if (pauseAudioActive) {
                     audioPauser.abandon(this);
                     pauseAudioActive = false;
@@ -564,6 +602,7 @@ public class RustInputMethodService extends InputMethodService {
             }
             updateRecordButtonUI(false);
             if (statusView != null) statusView.setText("Tap to Record");
+            hideStatsIfIdle();
             if (pendingSwitchBack) {
                 pendingSwitchBack = false;
                 switchToPreviousInputMethod();
@@ -604,6 +643,64 @@ public class RustInputMethodService extends InputMethodService {
         if (micLevelView != null) {
             mainHandler.post(() -> micLevelView.setLevel(level));
         }
+    }
+
+    /** Called from the native streaming worker at a throttled cadence. */
+    public void onStreamingStats(long processedAudioMs, int words, float speed) {
+        mainHandler.post(() -> {
+            processedWords = Math.max(0, words);
+            processingSpeed = Math.max(0f, speed);
+            streamingStatsReceived = true;
+            updateStatsView();
+        });
+    }
+
+    private boolean isProcessingStatus() {
+        return lastStatus.contains("Processing") || lastStatus.contains("Transcribing");
+    }
+
+    private void updateModelView() {
+        if (modelView == null) return;
+        String active = readConfig("active_model");
+        String model = active.isEmpty()
+                ? "Parakeet TDT 0.6B v3"
+                : active.endsWith(".gguf")
+                        ? active.substring(0, active.length() - ".gguf".length())
+                        : active;
+        modelView.setText(getString(R.string.ime_model_format, model));
+    }
+
+    private void updateStatsView() {
+        if (statsView == null) return;
+        boolean visible = isRecording || isProcessingStatus();
+        statsView.setVisibility(visible ? View.VISIBLE : View.GONE);
+        if (!visible) return;
+
+        long elapsedMs = recordingStartedAtMs == 0L
+                ? 0L
+                : Math.max(0L, android.os.SystemClock.elapsedRealtime() - recordingStartedAtMs);
+        statsView.setText(streamingStatsReceived
+                ? getString(R.string.ime_stats_format, formatElapsed(elapsedMs),
+                        processedWords, processingSpeed)
+                : getString(R.string.ime_stats_no_speed, formatElapsed(elapsedMs), processedWords));
+    }
+
+    private void hideStatsIfIdle() {
+        if (!isRecording && !isProcessingStatus() && statsView != null) {
+            statsView.setVisibility(View.GONE);
+        }
+        mainHandler.removeCallbacks(statsTicker);
+    }
+
+    private static String formatElapsed(long elapsedMs) {
+        long totalSeconds = elapsedMs / 1000L;
+        long hours = totalSeconds / 3600L;
+        long minutes = (totalSeconds % 3600L) / 60L;
+        long seconds = totalSeconds % 60L;
+        if (hours > 0L) {
+            return String.format(java.util.Locale.ROOT, "%d:%02d:%02d", hours, minutes, seconds);
+        }
+        return String.format(java.util.Locale.ROOT, "%02d:%02d", minutes, seconds);
     }
 
     private boolean isPauseAudioEnabled() {

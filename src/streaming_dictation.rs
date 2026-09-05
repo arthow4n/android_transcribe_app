@@ -8,7 +8,7 @@ use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, SyncSender, TryRecvError, TrySendError};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use jni::objects::GlobalRef;
 use jni::JavaVM;
@@ -118,6 +118,29 @@ fn notify_text(jvm: &JavaVM, target: &GlobalRef, text: &str) {
     }
 }
 
+fn notify_stats(jvm: &JavaVM, target: &GlobalRef, processed_audio_ms: i64, words: usize, speed: f32) {
+    if let Ok(mut env) = jvm.attach_current_thread() {
+        let _ = env.call_method(
+            target.as_obj(),
+            "onStreamingStats",
+            "(JIF)V",
+            &[
+                processed_audio_ms.into(),
+                (words.min(i32::MAX as usize) as i32).into(),
+                speed.into(),
+            ],
+        );
+    }
+}
+
+/// Count ordinary whitespace-delimited words in the current hypothesis. This
+/// intentionally remains a display metric: the streaming model may revise a
+/// tentative suffix, so it is not a promise that exactly this many words will
+/// be inserted when the recording is finalized.
+fn count_words(text: &str) -> usize {
+    text.split_whitespace().count()
+}
+
 /// Start a worker for an already loaded streaming-capable engine.
 pub fn start(
     engine: Arc<std::sync::Mutex<engine::Engine>>,
@@ -139,6 +162,8 @@ pub fn start(
             &mut engine.lock().unwrap_or_else(|e| e.into_inner()),
             &receiver,
             &worker_control,
+            &jvm,
+            &target,
         );
         match result {
             Ok(Some(text)) => {
@@ -156,8 +181,12 @@ fn run_worker(
     engine: &mut engine::Engine,
     receiver: &mpsc::Receiver<Vec<f32>>,
     control: &StreamingControl,
+    jvm: &JavaVM,
+    target: &GlobalRef,
 ) -> Result<Option<String>, String> {
     let mut stream = engine.begin_streaming()?;
+    let started = Instant::now();
+    let mut last_stats = Instant::now();
     let mut finalizing = false;
     loop {
         if control.cancel_requested.load(Ordering::Acquire) {
@@ -188,7 +217,22 @@ fn run_worker(
                 if samples.is_empty() {
                     continue;
                 }
-                stream.feed(&samples).map_err(|e| e.to_string())?;
+                let update = stream.feed(&samples).map_err(|e| e.to_string())?;
+                // Keep JNI traffic low enough for the audio thread and main
+                // looper while still making the keyboard feel live.
+                if last_stats.elapsed() >= Duration::from_millis(250) {
+                    let snapshot = stream.text();
+                    let elapsed = started.elapsed().as_secs_f32().max(0.001);
+                    let speed = (update.input_received_ms.max(0) as f32 / 1000.0) / elapsed;
+                    notify_stats(
+                        &jvm,
+                        &target,
+                        update.input_received_ms,
+                        count_words(&snapshot.full),
+                        speed,
+                    );
+                    last_stats = Instant::now();
+                }
             }
             Err(TryRecvError::Empty) if finalizing => {
                 if control.producer_done.load(Ordering::Acquire) {
@@ -196,8 +240,18 @@ fn run_worker(
                         stream.reset();
                         return Err("streaming audio buffer filled; try a shorter recording".into());
                     }
-                    stream.finalize().map_err(|e| e.to_string())?;
-                    let text = stream.text().full;
+                    let update = stream.finalize().map_err(|e| e.to_string())?;
+                    let snapshot = stream.text();
+                    let elapsed = started.elapsed().as_secs_f32().max(0.001);
+                    let speed = (update.input_received_ms.max(0) as f32 / 1000.0) / elapsed;
+                    notify_stats(
+                        &jvm,
+                        &target,
+                        update.input_received_ms,
+                        count_words(&snapshot.full),
+                        speed,
+                    );
+                    let text = snapshot.full;
                     drop(stream);
                     return Ok(Some(engine.convert_text(&text)));
                 }
