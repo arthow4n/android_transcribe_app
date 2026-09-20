@@ -5,6 +5,14 @@ plugins {
     id("com.android.application")
 }
 
+val embedModel: Boolean = if (project.hasProperty("embedModel")) {
+    project.property("embedModel").toString().toBoolean()
+} else if (System.getenv("EMBED_MODEL") != null) {
+    System.getenv("EMBED_MODEL").toBoolean()
+} else {
+    true
+}
+
 android {
     namespace = "dev.notune.transcribe"
     compileSdk = 35
@@ -58,9 +66,11 @@ android {
         }
     }
 
-    // Play Asset Delivery: large model files go into a separate asset pack
-    // so the base module stays under the 200 MB Play Store limit.
-    assetPacks += listOf(":model_assets")
+    if (embedModel) {
+        // Play Asset Delivery: large model files go into a separate asset pack
+        // so the base module stays under the 200 MB Play Store limit.
+        assetPacks += listOf(":model_assets")
+    }
 }
 
 // For APK builds (assemble/install), asset packs are ignored by AGP so we
@@ -70,7 +80,7 @@ android {
 val isBundle = gradle.startParameter.taskNames.any {
     it.contains("bundle", ignoreCase = true)
 }
-if (!isBundle) {
+if (!isBundle && embedModel) {
     android.sourceSets.getByName("main") {
         assets.srcDirs(
             "src/main/assets",
@@ -244,6 +254,8 @@ val downloadModels by tasks.registering {
     }
 }
 
-tasks.named("preBuild") {
-    dependsOn(downloadModels)
+if (embedModel) {
+    tasks.named("preBuild") {
+        dependsOn(downloadModels)
+    }
 }

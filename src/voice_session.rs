@@ -103,7 +103,7 @@ pub fn init_session(env: JNIEnv, target: JObject) -> VoiceSessionState {
 /// for trailing silence after speech (or a no-speech timeout) and invokes the
 /// Java-side `onAutoStop()` callback, which is expected to stop the recording
 /// the same way a manual tap would.
-pub fn start_recording(mut env: JNIEnv, state: &mut VoiceSessionState, auto_stop: bool) {
+pub fn start_recording(env: JNIEnv, state: &mut VoiceSessionState, auto_stop: bool) {
     start_recording_mode(env, state, auto_stop, false);
 }
 

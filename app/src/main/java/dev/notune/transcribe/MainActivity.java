@@ -13,7 +13,9 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.CompoundButton;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.RadioGroup;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -50,6 +52,17 @@ public class MainActivity extends AppCompatActivity {
     private Button startSubsButton;
     private Button benchButton;
     private TextView benchResultText;
+    private View cardWpmStats;
+    private TextView textWpmEmpty;
+    private View layoutWpmContent;
+    private TextView textWpmAvg;
+    private TextView textWpmLast;
+    private TextView textWpmWords;
+    private LinearLayout containerWpmByLanguage;
+    private LinearLayout containerWpmByModel;
+    private Button btnWpmHistory;
+    private Button btnWpmReset;
+    private ScrollView mainScrollView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -141,6 +154,29 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        // WPM & Dictation Statistics
+        mainScrollView = findViewById(R.id.main_scroll_view);
+        cardWpmStats = findViewById(R.id.card_wpm_stats);
+        textWpmEmpty = findViewById(R.id.text_wpm_empty);
+        layoutWpmContent = findViewById(R.id.layout_wpm_content);
+        textWpmAvg = findViewById(R.id.text_wpm_avg);
+        textWpmLast = findViewById(R.id.text_wpm_last);
+        textWpmWords = findViewById(R.id.text_wpm_words);
+        containerWpmByLanguage = findViewById(R.id.container_wpm_by_language);
+        containerWpmByModel = findViewById(R.id.container_wpm_by_model);
+        btnWpmHistory = findViewById(R.id.btn_wpm_history);
+        btnWpmReset = findViewById(R.id.btn_wpm_reset);
+
+        if (btnWpmHistory != null) {
+            btnWpmHistory.setOnClickListener(v -> showWpmHistoryDialog());
+        }
+        if (btnWpmReset != null) {
+            btnWpmReset.setOnClickListener(v -> confirmResetWpmStats());
+        }
+
+        updateWpmStats();
+        handleOpenStatsIntent(getIntent());
+
         // Initial check
         updateVoiceInputStatus();
 
@@ -149,10 +185,19 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleOpenStatsIntent(intent);
+    }
+
+    @Override
     protected void onResume() {
         super.onResume();
         // Re-check on return from the keyboard chooser, settings, or a test run.
         updateVoiceInputStatus();
+        updateWpmStats();
+        handleOpenStatsIntent(getIntent());
     }
 
     /**
@@ -265,6 +310,111 @@ public class MainActivity extends AppCompatActivity {
                     cm.setPrimaryClip(android.content.ClipData.newPlainText("adb", allowCmd));
                     snackbar(getString(R.string.subs_advanced_copied));
                 })
+                .show();
+    }
+
+    private void handleOpenStatsIntent(Intent intent) {
+        if (intent != null && intent.getBooleanExtra("open_stats", false)) {
+            intent.removeExtra("open_stats");
+            if (mainScrollView != null && cardWpmStats != null) {
+                mainScrollView.post(() -> mainScrollView.smoothScrollTo(0, cardWpmStats.getTop()));
+            }
+        }
+    }
+
+    private void updateWpmStats() {
+        if (textWpmEmpty == null || layoutWpmContent == null) return;
+        DictationStatsManager.StatsSummary summary = DictationStatsManager.getSummary(this);
+        if (summary.totalPastes == 0) {
+            textWpmEmpty.setVisibility(View.VISIBLE);
+            layoutWpmContent.setVisibility(View.GONE);
+            return;
+        }
+
+        textWpmEmpty.setVisibility(View.GONE);
+        layoutWpmContent.setVisibility(View.VISIBLE);
+
+        if (textWpmAvg != null) {
+            textWpmAvg.setText(String.valueOf(Math.round(summary.averageWpm)));
+        }
+        if (textWpmLast != null) {
+            textWpmLast.setText(summary.lastPaste != null
+                    ? String.valueOf(Math.round(summary.lastPaste.wpm))
+                    : "—");
+        }
+        if (textWpmWords != null) {
+            textWpmWords.setText(String.format(java.util.Locale.getDefault(), "%,d", summary.totalWords));
+        }
+
+        // Breakdown by Language
+        if (containerWpmByLanguage != null) {
+            containerWpmByLanguage.removeAllViews();
+            android.view.LayoutInflater inflater = getLayoutInflater();
+            for (DictationStatsManager.GroupStats g : summary.byLanguage.values()) {
+                View row = inflater.inflate(R.layout.item_wpm_group, containerWpmByLanguage, false);
+                TextView name = row.findViewById(R.id.text_group_name);
+                TextView details = row.findViewById(R.id.text_group_details);
+                TextView wpm = row.findViewById(R.id.text_group_wpm);
+
+                name.setText(g.name);
+                String durStr = DictationStatsManager.formatDuration(g.totalDurationMs);
+                details.setText(getString(R.string.wpm_group_details, g.totalWords, g.count, durStr));
+                wpm.setText(getString(R.string.wpm_wpm_value, Math.round(g.getAverageWpm())));
+                containerWpmByLanguage.addView(row);
+            }
+        }
+
+        // Breakdown by Model
+        if (containerWpmByModel != null) {
+            containerWpmByModel.removeAllViews();
+            android.view.LayoutInflater inflater = getLayoutInflater();
+            for (DictationStatsManager.GroupStats g : summary.byModel.values()) {
+                View row = inflater.inflate(R.layout.item_wpm_group, containerWpmByModel, false);
+                TextView name = row.findViewById(R.id.text_group_name);
+                TextView details = row.findViewById(R.id.text_group_details);
+                TextView wpm = row.findViewById(R.id.text_group_wpm);
+
+                name.setText(g.name);
+                String durStr = DictationStatsManager.formatDuration(g.totalDurationMs);
+                details.setText(getString(R.string.wpm_group_details, g.totalWords, g.count, durStr));
+                wpm.setText(getString(R.string.wpm_wpm_value, Math.round(g.getAverageWpm())));
+                containerWpmByModel.addView(row);
+            }
+        }
+    }
+
+    private void showWpmHistoryDialog() {
+        DictationStatsManager.StatsSummary summary = DictationStatsManager.getSummary(this);
+        if (summary.recentSessions.isEmpty()) {
+            snackbar(getString(R.string.wpm_history_empty));
+            return;
+        }
+        CharSequence[] items = new CharSequence[summary.recentSessions.size()];
+        for (int i = 0; i < summary.recentSessions.size(); i++) {
+            DictationStatsManager.SessionRecord rec = summary.recentSessions.get(i);
+            int wpm = Math.round(rec.wpm);
+            float secs = rec.durationMs / 1000.0f;
+            String timeStr = android.text.format.DateFormat.format("MMM d, HH:mm", rec.timestamp).toString();
+            items[i] = getString(R.string.wpm_history_item, wpm, rec.words, secs, rec.language, rec.model, timeStr);
+        }
+
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.wpm_history_title)
+                .setItems(items, null)
+                .setPositiveButton(android.R.string.ok, null)
+                .show();
+    }
+
+    private void confirmResetWpmStats() {
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.wpm_reset_confirm_title)
+                .setMessage(R.string.wpm_reset_confirm_msg)
+                .setPositiveButton(R.string.btn_wpm_reset, (dialog, which) -> {
+                    DictationStatsManager.clearStats(this);
+                    updateWpmStats();
+                    snackbar(getString(R.string.wpm_reset_done));
+                })
+                .setNegativeButton(android.R.string.cancel, null)
                 .show();
     }
 

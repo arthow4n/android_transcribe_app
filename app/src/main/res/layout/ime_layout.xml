@@ -11,27 +11,46 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:paddingBottom="8dp">
+        android:orientation="vertical"
+        android:paddingBottom="6dp">
 
-        <TextView
-            android:id="@+id/ime_status_text"
-            android:layout_width="0dp"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Tap to speak"
-            android:textColor="?attr/colorOnSurfaceVariant"
-            android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:paddingStart="4dp"/>
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
 
-        <ProgressBar
-            android:id="@+id/ime_progress"
-            style="?android:attr/progressBarStyleSmall"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
+            <TextView
+                android:id="@+id/ime_status_text"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Tap to speak"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:textAppearance="?attr/textAppearanceBodyMedium"
+                android:paddingStart="4dp"/>
+
+            <ProgressBar
+                android:id="@+id/ime_progress"
+                style="?android:attr/progressBarStyleSmall"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:visibility="gone"/>
+        </LinearLayout>
+
+        <!-- WPM of the last paste, shown directly below the status line -->
+        <TextView
+            android:id="@+id/ime_last_wpm_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="?attr/colorPrimary"
+            android:textAppearance="?attr/textAppearanceLabelSmall"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:paddingTop="2dp"
             android:visibility="gone"/>
     </LinearLayout>
+
 
     <!-- The active model is also a quick selector for installed models. -->
     <Spinner

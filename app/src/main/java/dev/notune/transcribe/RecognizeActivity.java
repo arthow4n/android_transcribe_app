@@ -30,6 +30,8 @@ public class RecognizeActivity extends AppCompatActivity {
 
     private TextView status;
     private boolean isRecording = false;
+    private long recordingStartedAtMs = 0L;
+    private long lastRecordingDurationMs = 0L;
     private MicLevelView micLevel;
     private final AudioFocusPauser audioPauser = new AudioFocusPauser();
     private boolean pauseAudioActive = false;
@@ -72,6 +74,8 @@ public class RecognizeActivity extends AppCompatActivity {
 
         initNative(this);
         isRecording = true;
+        recordingStartedAtMs = android.os.SystemClock.elapsedRealtime();
+        lastRecordingDurationMs = 0L;
         status.setText("Listening... (Tap to stop)");
         if (isPauseAudioEnabled()) {
             audioPauser.request(this);
@@ -84,6 +88,8 @@ public class RecognizeActivity extends AppCompatActivity {
     private void finishRecording() {
         if (!isRecording) return;
         isRecording = false;
+        lastRecordingDurationMs = Math.max(0L,
+                android.os.SystemClock.elapsedRealtime() - recordingStartedAtMs);
         status.setText("Processing...");
         stopRecording();
         if (pauseAudioActive) {
@@ -158,6 +164,15 @@ public class RecognizeActivity extends AppCompatActivity {
                 return;
             }
 
+            long dur = lastRecordingDurationMs > 0 ? lastRecordingDurationMs
+                    : (recordingStartedAtMs > 0
+                    ? Math.max(0L, android.os.SystemClock.elapsedRealtime() - recordingStartedAtMs)
+                    : 0L);
+            lastRecordingDurationMs = 0L;
+            String lang = readConfig("model_language");
+            String model = readConfig("active_model");
+            DictationStatsManager.recordPaste(this, text, dur, lang, model);
+
             ArrayList<String> results = new ArrayList<>();
             results.add(text);
 
@@ -167,6 +182,17 @@ public class RecognizeActivity extends AppCompatActivity {
             setResult(Activity.RESULT_OK, data);
             finish();
         });
+    }
+
+    private String readConfig(String name) {
+        java.io.File file = new java.io.File(getFilesDir(), name);
+        if (!file.isFile()) return "";
+        try {
+            return new String(java.nio.file.Files.readAllBytes(file.toPath()),
+                    java.nio.charset.StandardCharsets.UTF_8).trim();
+        } catch (java.io.IOException e) {
+            return "";
+        }
     }
 
     private boolean isPauseAudioEnabled() {

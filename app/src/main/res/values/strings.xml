@@ -14,6 +14,7 @@
     <string name="ime_model_selector">Select speech model</string>
     <string name="ime_select_all">Select all text</string>
     <string name="ime_stats_format">Elapsed %1$s · %2$d words · Now %3$s · Avg %4$s</string>
+    <string name="ime_last_wpm_format">Last paste: %1$d WPM (%2$d words in %3$.1fs)</string>
     
     <string name="section_subs">Live Subtitles</string>
     <string name="desc_subs">Display subtitles for any audio playing on your device. After starting, select \'Share entire screen\' for best results.</string>
@@ -128,7 +129,27 @@
     <string name="voice_test_ok">It works! Heard: %1$s</string>
     <string name="voice_test_empty">It works, but no speech was detected.</string>
     <string name="voice_test_failed">Couldn\'t start voice input on this device.</string>
-
     <string name="voice_help_title">Voice input setup</string>
     <string name="voice_help_body">How to use it\n• Open any app and tap the microphone on a supported keyboard/app. A small panel slides up, you speak, tap to stop, and the text is inserted. (Enable “Auto-stop after silence” in the settings to have it stop by itself.)\n\nWhich keyboards open the voice panel\n• Microsoft SwiftKey (not open source) and website voice search open the panel directly.\n• AnySoftKeyboard is the open-source way to get the panel: its mic key opens it as long as no voice keyboard is enabled on your system.\n\nOther open-source keyboards\n• HeliBoard, FlorisBoard, OpenBoard, Fossify Keyboard and Unexpected Keyboard don\'t open the panel: their mic key switches to the “Offline Voice Input” keyboard instead. Enable it once (see “Alternative: Voice keyboard”), speak there, and use its keyboard-switch key to go back. FUTO Keyboard ships its own voice input.\n• Gboard only uses Google\'s own voice typing and can\'t use this app at all.\n\nIf SwiftKey\'s own voice typing opens instead\n• Settings → Rich input → turn off “Multi-modal voice typing”.\n• Then tap the mic again and pick “Offline Voice Input”.\n\nIf Android asks which app to use\n• Choose “Offline Voice Input” and tap “Always”.\n\nIf another app always opens instead\n• Open Settings → Apps → that app → “Open by default” → Clear defaults, then try again.</string>
+
+    <string name="section_wpm_stats">Dictation Speed (WPM)</string>
+    <string name="desc_wpm_stats">Speaking speed and words-per-minute metrics for voice pastes, broken down by language and model.</string>
+    <string name="wpm_stat_avg">Average WPM</string>
+    <string name="wpm_stat_last">Last Paste</string>
+    <string name="wpm_stat_words">Words</string>
+    <string name="wpm_stat_pastes">Pastes</string>
+    <string name="wpm_by_language">By Language</string>
+    <string name="wpm_by_model">By Model</string>
+    <string name="wpm_group_details">%1$d words · %2$d pastes · %3$s</string>
+    <string name="wpm_wpm_value">%1$d WPM</string>
+    <string name="wpm_empty">No dictation history yet. Dictate text using the voice keyboard to see your words-per-minute statistics here.</string>
+    <string name="btn_wpm_history">View Pastes History</string>
+    <string name="btn_wpm_reset">Reset</string>
+    <string name="wpm_reset_confirm_title">Reset Statistics?</string>
+    <string name="wpm_reset_confirm_msg">This will delete all recorded WPM speed metrics and dictation history.</string>
+    <string name="wpm_reset_done">Statistics reset</string>
+    <string name="wpm_history_title">Recent Dictation Pastes</string>
+    <string name="wpm_history_empty">No recent pastes recorded.</string>
+    <string name="wpm_history_item">%1$d WPM · %2$d words in %3$.1fs\n%4$s · %5$s\n%6$s</string>
 </resources>
+

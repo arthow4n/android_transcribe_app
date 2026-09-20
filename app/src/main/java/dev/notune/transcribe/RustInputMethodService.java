@@ -16,6 +16,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.view.MotionEvent;
 import android.view.inputmethod.EditorInfo;
@@ -46,6 +47,7 @@ public class RustInputMethodService extends InputMethodService {
     }
 
     private TextView statusView;
+    private TextView lastWpmView;
     private Spinner modelSpinner;
     private TextView statsView;
     private TextView hintView;
@@ -74,7 +76,8 @@ public class RustInputMethodService extends InputMethodService {
     private static final long REPEAT_INITIAL_DELAY = 400; // ms before repeat starts
     private static final long REPEAT_INTERVAL = 50; // ms between repeats
     private Runnable backspaceRepeatRunnable;
-    private Runnable spaceRepeatRunnable;
+    private Runnable spaceLongPressRunnable;
+    private boolean spaceLongPressed = false;
     private final AudioFocusPauser audioPauser = new AudioFocusPauser();
     private boolean pauseAudioActive = false;
     // Whether an editor is currently focused/started for input. Tracked via
@@ -86,6 +89,7 @@ public class RustInputMethodService extends InputMethodService {
     // the main-thread ticker owns elapsed-time rendering so it stays smooth
     // even when native inference is busy.
     private long recordingStartedAtMs = 0L;
+    private long lastRecordingDurationMs = 0L;
     private long processedAudioMs = 0L;
     private int processedWords = 0;
     private float currentProcessingSpeed = -1f;
@@ -151,6 +155,11 @@ public class RustInputMethodService extends InputMethodService {
             });
 
             statusView = view.findViewById(R.id.ime_status_text);
+            lastWpmView = view.findViewById(R.id.ime_last_wpm_text);
+            if (lastWpmView != null) {
+                lastWpmView.setOnClickListener(v -> openAppStats());
+            }
+            showLastWpmIfAvailable();
             modelSpinner = view.findViewById(R.id.ime_model_spinner);
             statsView = view.findViewById(R.id.ime_stats_text);
             progressBar = view.findViewById(R.id.ime_progress);
@@ -171,14 +180,14 @@ public class RustInputMethodService extends InputMethodService {
 
             selectAllButton.setOnClickListener(v -> selectAllText());
 
-            switchKeyboardButton.setOnClickListener(v -> {
-                if (isRecording) {
-                    pendingSwitchBack = true;
-                    stopRecording();
-                    updateRecordButtonUI(false);
-                } else {
-                    switchToPreviousInputMethod();
+            switchKeyboardButton.setOnClickListener(v -> switchLanguageOrKeyboard());
+            switchKeyboardButton.setOnLongClickListener(v -> {
+                InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+                if (imm != null) {
+                    imm.showInputMethodPicker();
+                    return true;
                 }
+                return false;
             });
 
             // Key repeat runnable for backspace
@@ -194,15 +203,15 @@ public class RustInputMethodService extends InputMethodService {
                 }
             };
 
-            // Key repeat runnable for space
-            spaceRepeatRunnable = new Runnable() {
+            // Long-press runnable for space to switch language
+            spaceLongPressRunnable = new Runnable() {
                 @Override
                 public void run() {
-                    InputConnection ic = getCurrentInputConnection();
-                    if (ic != null) {
-                        ic.commitText(" ", 1);
+                    spaceLongPressed = true;
+                    if (spaceButton != null) {
+                        spaceButton.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
                     }
-                    mainHandler.postDelayed(this, REPEAT_INTERVAL);
+                    switchLanguageOrKeyboard();
                 }
             };
 
@@ -227,15 +236,31 @@ public class RustInputMethodService extends InputMethodService {
             spaceButton.setOnTouchListener((v, event) -> {
                 switch (event.getAction()) {
                     case MotionEvent.ACTION_DOWN:
-                        InputConnection ic = getCurrentInputConnection();
-                        if (ic != null) {
-                            ic.commitText(" ", 1);
+                        spaceLongPressed = false;
+                        v.setPressed(true);
+                        mainHandler.postDelayed(spaceLongPressRunnable,
+                                android.view.ViewConfiguration.getLongPressTimeout());
+                        return true;
+                    case MotionEvent.ACTION_MOVE:
+                        if (!isPointInsideView(v, event.getX(), event.getY())) {
+                            mainHandler.removeCallbacks(spaceLongPressRunnable);
+                            v.setPressed(false);
                         }
-                        mainHandler.postDelayed(spaceRepeatRunnable, REPEAT_INITIAL_DELAY);
                         return true;
                     case MotionEvent.ACTION_UP:
+                        mainHandler.removeCallbacks(spaceLongPressRunnable);
+                        v.setPressed(false);
+                        if (!spaceLongPressed) {
+                            InputConnection ic = getCurrentInputConnection();
+                            if (ic != null) {
+                                ic.commitText(" ", 1);
+                            }
+                        }
+                        return true;
                     case MotionEvent.ACTION_CANCEL:
-                        mainHandler.removeCallbacks(spaceRepeatRunnable);
+                        mainHandler.removeCallbacks(spaceLongPressRunnable);
+                        v.setPressed(false);
+                        spaceLongPressed = false;
                         return true;
                 }
                 return false;
@@ -314,7 +339,10 @@ public class RustInputMethodService extends InputMethodService {
         super.onWindowShown();
         boolean wasVisible = windowVisible;
         windowVisible = true;
-        if (!isRecording) refreshModelSpinner();
+        if (!isRecording) {
+            refreshModelSpinner();
+            showLastWpmIfAvailable();
+        }
         if (isRecording) {
             // A background recording is still running (record-in-background
             // setting): restore the recording UI.
@@ -397,6 +425,7 @@ public class RustInputMethodService extends InputMethodService {
         isRecording = recording;
         if (recording && !wasRecording) {
             recordingStartedAtMs = android.os.SystemClock.elapsedRealtime();
+            lastRecordingDurationMs = 0L;
             processedAudioMs = 0L;
             processedWords = 0;
             currentProcessingSpeed = -1f;
@@ -406,6 +435,8 @@ public class RustInputMethodService extends InputMethodService {
             mainHandler.removeCallbacks(statsTicker);
             mainHandler.post(statsTicker);
         } else if (!recording && wasRecording) {
+            lastRecordingDurationMs = Math.max(0L,
+                    android.os.SystemClock.elapsedRealtime() - recordingStartedAtMs);
             // Keep the final metrics visible during the short native finalize
             // phase; the ticker stops once the status returns to Ready.
             updateStatsView();
@@ -446,7 +477,11 @@ public class RustInputMethodService extends InputMethodService {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        if (mainHandler != null) mainHandler.removeCallbacks(statsTicker);
+        if (mainHandler != null) {
+            mainHandler.removeCallbacks(statsTicker);
+            if (spaceLongPressRunnable != null) mainHandler.removeCallbacks(spaceLongPressRunnable);
+            if (backspaceRepeatRunnable != null) mainHandler.removeCallbacks(backspaceRepeatRunnable);
+        }
         cleanupNative();
         if (pauseAudioActive) {
             audioPauser.abandon(this);
@@ -658,6 +693,18 @@ public class RustInputMethodService extends InputMethodService {
             if (pauseAudioActive) {
                 audioPauser.abandon(this);
                 pauseAudioActive = false;
+            }
+            long dur = lastRecordingDurationMs > 0 ? lastRecordingDurationMs
+                    : (recordingStartedAtMs > 0
+                    ? Math.max(0L, android.os.SystemClock.elapsedRealtime() - recordingStartedAtMs)
+                    : 0L);
+            lastRecordingDurationMs = 0L;
+            String currentLang = readConfig("model_language");
+            String currentModel = readConfig("active_model");
+            DictationStatsManager.SessionRecord session = DictationStatsManager.recordPaste(
+                    RustInputMethodService.this, text, dur, currentLang, currentModel);
+            if (session != null) {
+                displayLastWpm(session);
             }
             updateRecordButtonUI(false);
             if (statusView != null) statusView.setText("Tap to Record");
@@ -898,6 +945,66 @@ public class RustInputMethodService extends InputMethodService {
         if (modelSpinner == null) return;
         modelSpinner.setEnabled(!disabled);
         modelSpinner.setAlpha(disabled ? 0.5f : 1.0f);
+    }
+
+    private void displayLastWpm(DictationStatsManager.SessionRecord session) {
+        if (lastWpmView == null || session == null) return;
+        int wpm = Math.round(session.wpm);
+        float seconds = session.durationMs / 1000.0f;
+        lastWpmView.setText(getString(R.string.ime_last_wpm_format, wpm, session.words, seconds));
+        lastWpmView.setVisibility(View.VISIBLE);
+    }
+
+    private void showLastWpmIfAvailable() {
+        if (lastWpmView == null) return;
+        DictationStatsManager.SessionRecord last = DictationStatsManager.getLastPaste(this);
+        if (last != null) {
+            displayLastWpm(last);
+        } else {
+            lastWpmView.setVisibility(View.GONE);
+        }
+    }
+
+    private void openAppStats() {
+        try {
+            Intent intent = new Intent(this, MainActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            intent.putExtra("open_stats", true);
+            startActivity(intent);
+        } catch (Throwable t) {
+            Log.w(TAG, "Failed to open MainActivity stats", t);
+        }
+    }
+
+    private void switchLanguageOrKeyboard() {
+        if (isRecording) {
+            pendingSwitchBack = true;
+            stopRecording();
+            updateRecordButtonUI(false);
+            return;
+        }
+        boolean switched = false;
+        try {
+            switched = switchToPreviousInputMethod();
+        } catch (Throwable t) {
+            Log.w(TAG, "switchToPreviousInputMethod failed", t);
+        }
+        if (!switched) {
+            InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+            if (imm != null) {
+                try {
+                    imm.showInputMethodPicker();
+                } catch (Throwable t) {
+                    Log.w(TAG, "showInputMethodPicker failed", t);
+                }
+            }
+        }
+    }
+
+    private static boolean isPointInsideView(View view, float x, float y) {
+        if (view == null) return false;
+        float slop = 24f;
+        return x >= -slop && x <= (view.getWidth() + slop) && y >= -slop && y <= (view.getHeight() + slop);
     }
 
     private native void reloadModelNative();
