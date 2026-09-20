@@ -72,6 +72,15 @@ public class RecognizeActivity extends AppCompatActivity {
             return;
         }
 
+        if (!ModelUtils.hasAnyModelInstalled(this)) {
+            status.setText("No speech model installed.\nPlease open the app and import a model.");
+            return;
+        }
+        if (ModelUtils.getActiveModel(this) == null) {
+            status.setText("No speech model selected.\nPlease open the app and select a model.");
+            return;
+        }
+
         initNative(this);
         isRecording = true;
         recordingStartedAtMs = android.os.SystemClock.elapsedRealtime();

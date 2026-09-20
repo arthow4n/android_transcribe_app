@@ -31,9 +31,64 @@ pub fn files_dir(env: &mut JNIEnv, context: &JObject) -> anyhow::Result<PathBuf>
     Ok(PathBuf::from(path_string))
 }
 
+/// Returns true if the built-in model is already extracted or present in APK assets.
+pub fn has_builtin_model(env: &mut JNIEnv, context: &JObject) -> bool {
+    let Ok(base_path) = files_dir(env, context) else {
+        return false;
+    };
+    let model_dir = base_path.join(BUILTIN_MODEL_DIR);
+    let marker_file = model_dir.join(EXTRACTION_COMPLETE_MARKER);
+    if marker_file.exists() && find_gguf(&model_dir).is_ok() {
+        return true;
+    }
+    let Ok(asset_manager_obj) = env
+        .call_method(
+            context,
+            "getAssets",
+            "()Landroid/content/res/AssetManager;",
+            &[],
+        )
+        .and_then(|v| v.l())
+    else {
+        return false;
+    };
+    let Ok(path_jstring) = env.new_string(BUILTIN_MODEL_DIR) else {
+        return false;
+    };
+    let Ok(list_array_obj) = env
+        .call_method(
+            &asset_manager_obj,
+            "list",
+            "(Ljava/lang/String;)[Ljava/lang/String;",
+            &[(&path_jstring).into()],
+        )
+        .and_then(|v| v.l())
+    else {
+        return false;
+    };
+    let list_array: jni::objects::JObjectArray = list_array_obj.into();
+    let Ok(len) = env.get_array_length(&list_array) else {
+        return false;
+    };
+    for i in 0..len {
+        if let Ok(elem) = env.get_object_array_element(&list_array, i) {
+            if let Ok(file_name) = env.get_string(&elem.into()) {
+                let s: String = file_name.into();
+                if s.ends_with(".gguf") {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
 /// Extracts the bundled model from APK assets (if not already done) and
 /// returns the path of its GGUF file.
 pub fn extract_builtin_model(env: &mut JNIEnv, context: &JObject) -> anyhow::Result<PathBuf> {
+    if !has_builtin_model(env, context) {
+        anyhow::bail!("no built-in model packaged in this app build");
+    }
     let base_path = files_dir(env, context)?;
 
     let legacy_dir = base_path.join(LEGACY_MODEL_DIR);

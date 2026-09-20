@@ -306,6 +306,20 @@ public class RustInputMethodService extends InputMethodService {
                     return;
                 }
 
+                if (!ModelUtils.hasAnyModelInstalled(this)) {
+                    if (statusView != null) statusView.setText(getString(R.string.models_none_installed));
+                    if (hintView != null) hintView.setText(getString(R.string.models_open_settings_hint));
+                    openModelsActivity();
+                    return;
+                }
+                String active = ModelUtils.getActiveModel(this);
+                if (active == null) {
+                    if (statusView != null) statusView.setText(getString(R.string.models_none_selected));
+                    if (hintView != null) hintView.setText(getString(R.string.models_open_settings_hint));
+                    openModelsActivity();
+                    return;
+                }
+
                 if (isRecording) {
                     stopRecording();
                     if (pauseAudioActive) {
@@ -620,14 +634,27 @@ public class RustInputMethodService extends InputMethodService {
         refreshModelSpinner();
         updateStatsView();
 
+        boolean noModelInstalled = !ModelUtils.hasAnyModelInstalled(this);
+        boolean noModelSelected = !noModelInstalled && ModelUtils.getActiveModel(this) == null;
+
         // Don't show internal loading states to the user
         if (statusView != null && !isRecording) {
-            if (isError) {
+            if (noModelInstalled) {
+                statusView.setText(getString(R.string.models_none_installed));
+            } else if (noModelSelected) {
+                statusView.setText(getString(R.string.models_none_selected));
+            } else if (isError) {
                 statusView.setText(lastStatus);
             } else if (isTranscribing || isWaiting) {
                 statusView.setText("Processing...");
             } else {
                 statusView.setText("Tap to Record");
+            }
+        }
+
+        if (hintView != null && !isRecording) {
+            if (noModelInstalled || noModelSelected) {
+                hintView.setText(getString(R.string.models_open_settings_hint));
             }
         }
 
@@ -784,6 +811,13 @@ public class RustInputMethodService extends InputMethodService {
                 }
 
                 String selected = modelFiles.get(position);
+                if (selected != null && selected.isEmpty()) {
+                    // Placeholder item ("No model installed" or "No model selected")
+                    openModelsActivity();
+                    refreshModelSpinner();
+                    return;
+                }
+
                 String current = readConfig("active_model");
                 boolean same = selected == null ? current.isEmpty() : selected.equals(current);
                 if (same) return;
@@ -821,31 +855,49 @@ public class RustInputMethodService extends InputMethodService {
         if (modelSpinner == null || modelAdapter == null) return;
 
         String active = readConfig("active_model");
-        List<String> names = new ArrayList<>();
-        File dir = new File(getFilesDir(), "models");
-        File[] files = dir.listFiles((d, name) -> isModelFileName(name));
-        if (files != null) {
-            for (File file : files) names.add(file.getName());
-        }
-        names.sort(String.CASE_INSENSITIVE_ORDER);
+        List<String> names = ModelUtils.getInstalledImportedModels(this);
+        boolean hasBuiltin = ModelUtils.hasBuiltinModel(this);
 
         modelFiles.clear();
-        modelFiles.add(null); // Built-in Parakeet model.
         List<String> labels = new ArrayList<>();
-        labels.add(getString(R.string.models_builtin));
+
+        if (hasBuiltin) {
+            modelFiles.add(null); // Built-in Parakeet model.
+            labels.add(getString(R.string.models_builtin));
+        }
         for (String name : names) {
             modelFiles.add(name);
             labels.add(stripModelExtension(name));
         }
 
-        int selected = active.isEmpty() ? 0 : modelFiles.indexOf(active);
-        if (selected < 0) selected = 0;
+        int selected = -1;
+        if (!active.isEmpty()) {
+            selected = modelFiles.indexOf(active);
+            if (selected < 0 && hasBuiltin) {
+                selected = 0;
+                writeConfig("active_model", "");
+            }
+        } else if (hasBuiltin) {
+            selected = 0;
+        }
+
+        if (modelFiles.isEmpty()) {
+            labels.add(getString(R.string.models_none_installed));
+            modelFiles.add("");
+            selected = 0;
+        } else if (selected < 0) {
+            labels.add(0, getString(R.string.models_none_selected));
+            modelFiles.add(0, "");
+            selected = 0;
+        }
 
         updatingModelSpinner = true;
         modelAdapter.clear();
         modelAdapter.addAll(labels);
         modelAdapter.notifyDataSetChanged();
-        modelSpinner.setSelection(selected, false);
+        if (selected >= 0 && selected < labels.size()) {
+            modelSpinner.setSelection(selected, false);
+        }
         updatingModelSpinner = false;
     }
 
@@ -973,6 +1025,16 @@ public class RustInputMethodService extends InputMethodService {
             startActivity(intent);
         } catch (Throwable t) {
             Log.w(TAG, "Failed to open MainActivity stats", t);
+        }
+    }
+
+    private void openModelsActivity() {
+        try {
+            Intent intent = new Intent(this, ModelsActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+        } catch (Throwable t) {
+            Log.w(TAG, "Failed to open ModelsActivity", t);
         }
     }
 

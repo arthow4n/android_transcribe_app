@@ -221,6 +221,19 @@ public class MainActivity extends AppCompatActivity {
         }
 
         voiceGrantButton.setVisibility(View.GONE);
+
+        if (!ModelUtils.hasAnyModelInstalled(this)) {
+            setVoiceStatus(false, getString(R.string.voice_status_no_model));
+            voiceTryButton.setEnabled(false);
+            return;
+        }
+
+        if (ModelUtils.getActiveModel(this) == null) {
+            setVoiceStatus(false, getString(R.string.voice_status_no_model_selected));
+            voiceTryButton.setEnabled(false);
+            return;
+        }
+
         voiceTryButton.setEnabled(true);
 
         if (isOurAppDefaultRecognizer()) {
@@ -474,6 +487,17 @@ public class MainActivity extends AppCompatActivity {
      * current model settings (language hint, translate).
      */
     private void runBenchmark() {
+        if (!ModelUtils.hasAnyModelInstalled(this)) {
+            benchResultText.setVisibility(View.VISIBLE);
+            benchResultText.setText(R.string.models_none_installed_msg);
+            return;
+        }
+        if (ModelUtils.getActiveModel(this) == null) {
+            benchResultText.setVisibility(View.VISIBLE);
+            benchResultText.setText(R.string.models_none_selected_msg);
+            return;
+        }
+
         benchButton.setEnabled(false);
         benchResultText.setVisibility(View.VISIBLE);
         benchResultText.setText(R.string.bench_running);
@@ -519,19 +543,25 @@ public class MainActivity extends AppCompatActivity {
         byte[] bytes;
         try (java.io.InputStream in = getAssets().open(name);
              java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
-            byte[] buf = new byte[64 * 1024];
+            byte[] buf = new byte[8192];
             int read;
-            while ((read = in.read(buf)) != -1) {
-                out.write(buf, 0, read);
-            }
+            while ((read = in.read(buf)) != -1) out.write(buf, 0, read);
             bytes = out.toByteArray();
         }
 
-        // Find the "data" chunk instead of assuming a 44-byte header.
+        // Minimal WAV parser: verify RIFF/WAVE header and find the data chunk.
+        if (bytes.length < 44
+                || bytes[0] != 'R' || bytes[1] != 'I' || bytes[2] != 'F' || bytes[3] != 'F'
+                || bytes[8] != 'W' || bytes[9] != 'A' || bytes[10] != 'V' || bytes[11] != 'E') {
+            throw new IOException("not a valid WAV file: " + name);
+        }
+
         int offset = 12;
         while (offset + 8 <= bytes.length) {
-            int chunkSize = (bytes[offset + 4] & 0xff) | ((bytes[offset + 5] & 0xff) << 8)
-                    | ((bytes[offset + 6] & 0xff) << 16) | ((bytes[offset + 7] & 0xff) << 24);
+            int chunkSize = (bytes[offset + 4] & 0xff)
+                    | ((bytes[offset + 5] & 0xff) << 8)
+                    | ((bytes[offset + 6] & 0xff) << 16)
+                    | ((bytes[offset + 7] & 0xff) << 24);
             if (bytes[offset] == 'd' && bytes[offset + 1] == 'a'
                     && bytes[offset + 2] == 't' && bytes[offset + 3] == 'a') {
                 int start = offset + 8;
@@ -556,6 +586,8 @@ public class MainActivity extends AppCompatActivity {
             // "Ready" may carry a suffix, e.g. "Ready (this model can't translate)".
             if (status.startsWith("Ready")) {
                 startSubsButton.setEnabled(true);
+            } else {
+                startSubsButton.setEnabled(false);
             }
         });
     }

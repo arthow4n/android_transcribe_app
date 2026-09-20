@@ -122,6 +122,13 @@
     <string name="voice_status_ready">Ready. In any app, tap the microphone on a supported keyboard and your speech is typed into the text field.</string>
     <string name="voice_status_need_mic">Microphone access is needed before voice input can work.</string>
     <string name="voice_status_almost">Almost there. When you tap your keyboard\'s mic, pick “Offline Voice Input” and choose “Always”. Tap “Try voice input” below to set it now.</string>
+    <string name="voice_status_no_model">No speech model installed. Tap “Manage speech models” below to import one.</string>
+    <string name="voice_status_no_model_selected">No speech model selected. Tap “Manage speech models” below to select one.</string>
+    <string name="models_none_installed">No model installed</string>
+    <string name="models_none_installed_msg">No speech model is installed yet. Download or import a model file below to begin.</string>
+    <string name="models_none_selected">No model selected</string>
+    <string name="models_none_selected_msg">No speech model is currently selected. Tap an installed model below to activate it.</string>
+    <string name="models_open_settings_hint">Tap to open Model Settings</string>
     <string name="btn_voice_try">Try voice input</string>
     <string name="btn_voice_grant">Grant microphone access</string>
     <string name="btn_voice_help">Setup help</string>

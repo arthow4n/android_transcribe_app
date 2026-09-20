@@ -582,7 +582,10 @@ fn do_load(env: &mut JNIEnv, context: &JObject) -> Result<(), String> {
         .filter(|&n| n > 0)
         .unwrap_or_else(performance_core_count);
 
-    if let Some(name) = read_config(&files_dir.join(ACTIVE_MODEL_FILE)) {
+    let active_model_name = read_config(&files_dir.join(ACTIVE_MODEL_FILE))
+        .filter(|s| !s.trim().is_empty());
+
+    if let Some(name) = active_model_name {
         let path = files_dir.join("models").join(&name);
         notify_status(env, context, &format!("Loading model {}...", name));
         match Engine::load(
@@ -601,14 +604,27 @@ fn do_load(env: &mut JNIEnv, context: &JObject) -> Result<(), String> {
             }
             Err(e) => {
                 log::error!("Imported model {} failed to load: {}", path.display(), e);
-                notify_status(
-                    env,
-                    context,
-                    &format!("Error loading {}: {} — using built-in model", name, e),
-                );
-                // fall through to the bundled model
+                let has_builtin = assets::has_builtin_model(env, context);
+                if has_builtin {
+                    notify_status(
+                        env,
+                        context,
+                        &format!("Error loading {}: {} — using built-in model", name, e),
+                    );
+                } else {
+                    let msg = format!("Error loading model {}: {}", name, e);
+                    notify_status(env, context, &format!("Error: {}", msg));
+                    return Err(msg);
+                }
+                // fall through to the bundled model only if built-in model is available
             }
         }
+    }
+
+    if !assets::has_builtin_model(env, context) {
+        log::info!("No model installed in app and no active model selected");
+        notify_status(env, context, "No model installed");
+        return Err("No model installed".to_string());
     }
 
     notify_status(env, context, "Checking assets...");

@@ -361,26 +361,38 @@ public class ModelsActivity extends AppCompatActivity {
         modelList.removeAllViews();
         String active = readConfig("active_model");
 
-        List<String> names = new ArrayList<>();
-        File[] files = modelsDir().listFiles((dir, name) -> isModelFileName(name));
-        if (files != null) {
-            for (File f : files) names.add(f.getName());
-        }
-        names.sort(String.CASE_INSENSITIVE_ORDER);
+        List<String> names = ModelUtils.getInstalledImportedModels(this);
+        boolean hasBuiltin = ModelUtils.hasBuiltinModel(this);
 
-        // If the active model's file has disappeared, fall back to built-in.
+        // If the active model's file has disappeared, clear selection.
         if (!active.isEmpty() && !names.contains(active)) {
             writeConfig("active_model", "");
             LanguageModelPrefs.write(this, readConfig("model_language"), "");
             active = "";
         }
 
-        addModelRow(getString(R.string.models_builtin),
-                getString(R.string.models_builtin_sub), null, active.isEmpty());
+        boolean builtinChecked = hasBuiltin && active.isEmpty();
+
+        if (hasBuiltin) {
+            addModelRow(getString(R.string.models_builtin),
+                    getString(R.string.models_builtin_sub), null, builtinChecked);
+        }
+
         for (String name : names) {
             String size = Formatter.formatShortFileSize(
-                    this, new File(modelsDir(), name).length());
+                    this, new File(ModelUtils.getModelsDir(this), name).length());
             addModelRow(name, size, name, name.equals(active));
+        }
+
+        if (!hasBuiltin && names.isEmpty()) {
+            TextView emptyText = new TextView(this);
+            emptyText.setText(R.string.models_none_installed_msg);
+            emptyText.setPadding(0, 16, 0, 16);
+            emptyText.setTextAppearance(this, com.google.android.material.R.style.TextAppearance_Material3_BodyMedium);
+            modelList.addView(emptyText);
+            statusText.setText(getString(R.string.models_none_installed));
+        } else if (!hasBuiltin && active.isEmpty()) {
+            statusText.setText(getString(R.string.models_none_selected));
         }
     }
 
@@ -408,6 +420,9 @@ public class ModelsActivity extends AppCompatActivity {
 
     private void selectModel(String fileNameOrNull) {
         String selected = fileNameOrNull == null ? "" : fileNameOrNull;
+        if (selected.isEmpty() && !ModelUtils.hasBuiltinModel(this)) {
+            return;
+        }
         if (!writeConfig("active_model", selected)) return;
         LanguageModelPrefs.write(this, readConfig("model_language"), selected);
         refreshList();
@@ -420,9 +435,16 @@ public class ModelsActivity extends AppCompatActivity {
                 .setTitle(R.string.models_delete)
                 .setMessage(getString(R.string.models_delete_confirm, fileName))
                 .setPositiveButton(android.R.string.ok, (d, w) -> {
-                    new File(modelsDir(), fileName).delete();
+                    new File(ModelUtils.getModelsDir(this), fileName).delete();
                     if (fileName.equals(readConfig("active_model"))) {
-                        selectModel(null);
+                        if (ModelUtils.hasBuiltinModel(this)) {
+                            selectModel(null);
+                        } else {
+                            writeConfig("active_model", "");
+                            LanguageModelPrefs.write(this, readConfig("model_language"), "");
+                            refreshList();
+                            reloadModelNative(this);
+                        }
                     } else {
                         refreshList();
                     }
@@ -534,7 +556,11 @@ public class ModelsActivity extends AppCompatActivity {
                 importArea.setVisibility(View.GONE);
                 if (success) {
                     snackbar(getString(R.string.models_import_done, name));
-                    refreshList();
+                    if (readConfig("active_model").isEmpty() && !ModelUtils.hasBuiltinModel(ModelsActivity.this)) {
+                        selectModel(name);
+                    } else {
+                        refreshList();
+                    }
                 } else {
                     snackbar(getString(R.string.models_import_failed));
                 }

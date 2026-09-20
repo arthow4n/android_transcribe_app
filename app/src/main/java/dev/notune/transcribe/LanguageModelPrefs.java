@@ -57,10 +57,10 @@ final class LanguageModelPrefs {
 
     /** True for the built-in model or an installed imported GGUF/Whisper BIN. */
     static boolean isInstalledModel(Context context, String modelFile) {
-        if (modelFile == null || modelFile.isEmpty()) return true;
+        if (modelFile == null || modelFile.isEmpty()) return ModelUtils.hasBuiltinModel(context);
         String lower = modelFile.toLowerCase(java.util.Locale.ROOT);
         if (!lower.endsWith(".gguf") && !lower.endsWith(".bin")) return false;
-        return new File(new File(context.getFilesDir(), "models"), modelFile).isFile();
+        return new File(ModelUtils.getModelsDir(context), modelFile).isFile();
     }
 
     private static File mappingFile(Context context, String language, boolean createDirectory) {
