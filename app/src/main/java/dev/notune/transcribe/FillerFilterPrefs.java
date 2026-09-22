@@ -33,15 +33,27 @@ public class FillerFilterPrefs {
             "那個", "就是", "然後", "嗯", "呃", "其實", "怎麼說"
     ));
 
-    public boolean enabled = false;
+    public static final List<String> DEFAULT_EN_WORDS = Collections.unmodifiableList(Arrays.asList(
+            "uh", "um", "er", "ah"
+    ));
+
+    public static final List<String> DEFAULT_ZH_HANS_WORDS = Collections.unmodifiableList(Arrays.asList(
+            "嗯", "呃"
+    ));
+
+    public static final List<String> DEFAULT_ZH_HANT_WORDS = Collections.unmodifiableList(Arrays.asList(
+            "嗯", "呃"
+    ));
+
+    public boolean enabled = true;
     public boolean cleanPunctuation = true;
     public boolean presetEnEnabled = true;
-    public boolean presetZhHansEnabled = false;
-    public boolean presetZhHantEnabled = false;
+    public boolean presetZhHansEnabled = true;
+    public boolean presetZhHantEnabled = true;
 
-    public List<String> enWords = new ArrayList<>(ALL_EN_WORDS);
-    public List<String> zhHansWords = new ArrayList<>(ALL_ZH_HANS_WORDS);
-    public List<String> zhHantWords = new ArrayList<>(ALL_ZH_HANT_WORDS);
+    public List<String> enWords = new ArrayList<>(DEFAULT_EN_WORDS);
+    public List<String> zhHansWords = new ArrayList<>(DEFAULT_ZH_HANS_WORDS);
+    public List<String> zhHantWords = new ArrayList<>(DEFAULT_ZH_HANT_WORDS);
     public List<String> customWords = new ArrayList<>();
 
     public static native String testFilterNative(String text, String configJson);
@@ -59,11 +71,11 @@ public class FillerFilterPrefs {
             if (read > 0) {
                 String jsonStr = new String(bytes, 0, read, StandardCharsets.UTF_8);
                 JSONObject obj = new JSONObject(jsonStr);
-                prefs.enabled = obj.optBoolean("enabled", false);
+                prefs.enabled = obj.optBoolean("enabled", true);
                 prefs.cleanPunctuation = obj.optBoolean("clean_punctuation", true);
                 prefs.presetEnEnabled = obj.optBoolean("preset_en_enabled", true);
-                prefs.presetZhHansEnabled = obj.optBoolean("preset_zh_hans_enabled", false);
-                prefs.presetZhHantEnabled = obj.optBoolean("preset_zh_hant_enabled", false);
+                prefs.presetZhHansEnabled = obj.optBoolean("preset_zh_hans_enabled", true);
+                prefs.presetZhHantEnabled = obj.optBoolean("preset_zh_hant_enabled", true);
 
                 if (obj.has("en_words")) {
                     prefs.enWords = jsonArrayToList(obj.getJSONArray("en_words"));

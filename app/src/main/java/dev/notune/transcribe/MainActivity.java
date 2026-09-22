@@ -105,12 +105,14 @@ public class MainActivity extends AppCompatActivity {
         // process and native code without a content provider).
         bindMarkerSwitch(R.id.switch_auto_record, "auto_record", false);
         bindMarkerSwitch(R.id.switch_select_transcription, "select_transcription", false);
-        bindMarkerSwitch(R.id.switch_append_space, "append_space", false);
+        // Append a space defaults to ON; its marker file is the opt-out.
+        bindMarkerSwitch(R.id.switch_append_space, "no_append_space", true);
         bindMarkerSwitch(R.id.switch_pause_audio, "pause_audio", false);
         // Record-in-background defaults to ON; its marker file is the opt-out.
         bindMarkerSwitch(R.id.switch_record_background, "stop_on_hide", true);
         bindMarkerSwitch(R.id.switch_auto_stop, "auto_stop", false);
-        bindMarkerSwitch(R.id.switch_ime_streaming, "ime_streaming", false);
+        // Process while recording defaults to ON; its marker file is the opt-out.
+        bindMarkerSwitch(R.id.switch_ime_streaming, "no_ime_streaming", true);
 
         View rowFillerFilter = findViewById(R.id.row_filler_filter);
         if (rowFillerFilter != null) {

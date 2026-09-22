@@ -980,12 +980,14 @@ public class RustInputMethodService extends InputMethodService {
         return new File(getFilesDir(), "pause_audio").exists();
     }
 
+    /** "Append a space" is default ON; the marker file is the opt-out. */
     private boolean appendSpaceEnabled() {
-        return new File(getFilesDir(), "append_space").exists();
+        return !new File(getFilesDir(), "no_append_space").exists();
     }
 
+    /** "Process while recording" is default ON; the marker file is the opt-out. */
     private boolean isStreamingEnabled() {
-        return new File(getFilesDir(), "ime_streaming").exists();
+        return !new File(getFilesDir(), "no_ime_streaming").exists();
     }
 
     /** "Record in background" is default ON; the marker file is the opt-out. */

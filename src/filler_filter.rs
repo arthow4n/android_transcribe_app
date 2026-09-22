@@ -13,21 +13,21 @@ pub const FILLER_FILTER_FILE: &str = "filler_filter.json";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FillerFilterConfig {
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub enabled: bool,
     #[serde(default = "default_true")]
     pub clean_punctuation: bool,
     #[serde(default = "default_true")]
     pub preset_en_enabled: bool,
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub preset_zh_hans_enabled: bool,
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub preset_zh_hant_enabled: bool,
-    #[serde(default)]
+    #[serde(default = "default_en_words")]
     pub en_words: Vec<String>,
-    #[serde(default)]
+    #[serde(default = "default_zh_hans_words")]
     pub zh_hans_words: Vec<String>,
-    #[serde(default)]
+    #[serde(default = "default_zh_hant_words")]
     pub zh_hant_words: Vec<String>,
     #[serde(default)]
     pub custom_words: Vec<String>,
@@ -43,6 +43,29 @@ pub fn default_en_words() -> Vec<String> {
         "um".into(),
         "er".into(),
         "ah".into(),
+    ]
+}
+
+pub fn default_zh_hans_words() -> Vec<String> {
+    vec![
+        "嗯".into(),
+        "呃".into(),
+    ]
+}
+
+pub fn default_zh_hant_words() -> Vec<String> {
+    vec![
+        "嗯".into(),
+        "呃".into(),
+    ]
+}
+
+pub fn all_en_words() -> Vec<String> {
+    vec![
+        "uh".into(),
+        "um".into(),
+        "er".into(),
+        "ah".into(),
         "like".into(),
         "you know".into(),
         "I mean".into(),
@@ -51,7 +74,7 @@ pub fn default_en_words() -> Vec<String> {
     ]
 }
 
-pub fn default_zh_hans_words() -> Vec<String> {
+pub fn all_zh_hans_words() -> Vec<String> {
     vec![
         "那个".into(),
         "就是".into(),
@@ -63,7 +86,7 @@ pub fn default_zh_hans_words() -> Vec<String> {
     ]
 }
 
-pub fn default_zh_hant_words() -> Vec<String> {
+pub fn all_zh_hant_words() -> Vec<String> {
     vec![
         "那個".into(),
         "就是".into(),
@@ -78,11 +101,11 @@ pub fn default_zh_hant_words() -> Vec<String> {
 impl Default for FillerFilterConfig {
     fn default() -> Self {
         Self {
-            enabled: false,
+            enabled: true,
             clean_punctuation: true,
             preset_en_enabled: true,
-            preset_zh_hans_enabled: false,
-            preset_zh_hant_enabled: false,
+            preset_zh_hans_enabled: true,
+            preset_zh_hant_enabled: true,
             en_words: default_en_words(),
             zh_hans_words: default_zh_hans_words(),
             zh_hant_words: default_zh_hant_words(),
@@ -436,9 +459,9 @@ mod tests {
             preset_en_enabled: true,
             preset_zh_hans_enabled: true,
             preset_zh_hant_enabled: true,
-            en_words: default_en_words(),
-            zh_hans_words: default_zh_hans_words(),
-            zh_hant_words: default_zh_hant_words(),
+            en_words: all_en_words(),
+            zh_hans_words: all_zh_hans_words(),
+            zh_hant_words: all_zh_hant_words(),
             custom_words: vec!["totally".into()],
         };
         let filter = FillerFilter::new(config);
@@ -483,6 +506,30 @@ mod tests {
         assert_eq!(
             filter.filter("那個、我想想看。"),
             "我想想看。"
+        );
+    }
+
+    #[test]
+    fn test_filler_filter_defaults() {
+        let filter = FillerFilter::new(FillerFilterConfig::default());
+        // Defaults: uh, um, er, ah, 嗯, 呃
+        assert_eq!(
+            filter.filter("Uh, how are you today?"),
+            "How are you today?"
+        );
+        assert_eq!(
+            filter.filter("Well, um, that is cool."),
+            "Well, that is cool."
+        );
+        // Non-default preset words like "like" are preserved
+        assert_eq!(
+            filter.filter("This is, like, cool."),
+            "This is, like, cool."
+        );
+        // Chinese defaults: 嗯, 呃 filtered
+        assert_eq!(
+            filter.filter("嗯，好的。"),
+            "好的。"
         );
     }
 }
