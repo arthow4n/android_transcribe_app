@@ -158,5 +158,29 @@
     <string name="wpm_history_title">Recent Dictation Pastes</string>
     <string name="wpm_history_empty">No recent pastes recorded.</string>
     <string name="wpm_history_item">%1$d WPM · %2$d words in %3$.1fs\n%4$s · %5$s\n%6$s</string>
+
+    <!-- Filler words filter -->
+    <string name="setting_filler_filter">Filler words filter</string>
+    <string name="setting_filler_filter_desc">Filter out words like “uh”, “um”, “那个” and normalize punctuation</string>
+    <string name="filler_filter_title">Filler Words Filter</string>
+    <string name="filler_filter_enable">Filter filler words</string>
+    <string name="filler_filter_enable_desc">Automatically remove selected filler words from all transcriptions</string>
+    <string name="filler_filter_clean_punctuation">Clean up punctuation &amp; spaces</string>
+    <string name="filler_filter_clean_punctuation_desc">Remove duplicate commas, fix dangling punctuation, and restore sentence capitalization</string>
+    <string name="filler_filter_presets_title">Word Presets</string>
+    <string name="filler_filter_preset_en">English</string>
+    <string name="filler_filter_preset_zh_hans">Simplified Chinese (简体中文)</string>
+    <string name="filler_filter_preset_zh_hant">Traditional Chinese (繁體中文)</string>
+    <string name="filler_filter_selected_count">%1$d of %2$d active</string>
+    <string name="filler_filter_custom_title">Custom Words &amp; Phrases</string>
+    <string name="filler_filter_custom_hint">Add a word or phrase (e.g. “basically”)</string>
+    <string name="filler_filter_add_btn">Add</string>
+    <string name="filler_filter_custom_empty">No custom words added yet.</string>
+    <string name="filler_filter_test_title">Live Filter Preview</string>
+    <string name="filler_filter_test_hint">Type a sentence to test your filter…</string>
+    <string name="filler_filter_test_default">Well, uh, I think, um, that is, like, totally cool.</string>
+    <string name="filler_filter_test_output_label">Filtered output:</string>
+    <string name="filler_filter_status_on">%1$d words active</string>
+    <string name="filler_filter_status_off">Disabled</string>
 </resources>
 

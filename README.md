@@ -137,6 +137,24 @@ export KEY_PASS=yourpassword
 export STORE_PASS=yourpassword
 ```
 
+GitHub releases use the same persistent release key on every run. Configure these
+repository Actions secrets before publishing a release:
+
+- `RELEASE_KEYSTORE_BASE64`: the base64-encoded contents of `release.keystore`
+- `RELEASE_STORE_PASSWORD`: the keystore password
+- `RELEASE_KEY_ALIAS`: the key alias (for example, `release`)
+- `RELEASE_KEY_PASSWORD`: the key password
+
+For example, encode the keystore without line wrapping on Linux:
+
+```bash
+base64 -w 0 release.keystore
+```
+
+Keep a secure backup of the keystore and passwords. Android only permits an
+installed app to be updated by an APK signed with the same key; losing the key
+means existing installations cannot be upgraded in place.
+
 ### Model Assets
 
 The built-in Parakeet TDT GGUF model (~485 MB) is automatically downloaded from HuggingFace during the first build via a Gradle task. The checksum is verified with SHA-256. No manual download is needed.

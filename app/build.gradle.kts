@@ -21,8 +21,8 @@ android {
         applicationId = "dev.notune.transcribe"
         minSdk = 26
         targetSdk = 35
-        versionCode = 20
-        versionName = "0.1.19"
+        versionCode = 21
+        versionName = "0.1.20"
         ndk {
             abiFilters += "arm64-v8a"
         }
@@ -33,9 +33,12 @@ android {
             val ksFile = rootProject.file("release.keystore")
             if (ksFile.exists()) {
                 storeFile = ksFile
-                storePassword = System.getenv("STORE_PASS") ?: "password"
-                keyAlias = System.getenv("KEY_ALIAS") ?: "release"
-                keyPassword = System.getenv("KEY_PASS") ?: "password"
+                storePassword = System.getenv("STORE_PASS")
+                    ?: throw GradleException("STORE_PASS is required when release.keystore exists")
+                keyAlias = System.getenv("KEY_ALIAS")
+                    ?: throw GradleException("KEY_ALIAS is required when release.keystore exists")
+                keyPassword = System.getenv("KEY_PASS")
+                    ?: throw GradleException("KEY_PASS is required when release.keystore exists")
             }
         }
     }

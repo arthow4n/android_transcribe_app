@@ -11,3 +11,4 @@ pub mod subtitle;
 pub mod streaming_dictation;
 pub mod transcribe_file;
 pub mod voice_session;
+pub mod filler_filter;

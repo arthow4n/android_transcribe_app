@@ -17,6 +17,7 @@ use jni::JNIEnv;
 
 use crate::assets;
 use crate::chinese::{ChineseConverter, ChineseOutput};
+use crate::filler_filter::FillerFilter;
 
 /// File in filesDir naming the imported model (a GGUF or legacy Whisper `.bin`
 /// file under `models/`) to use instead of the bundled model. Absent or empty
@@ -58,6 +59,7 @@ pub struct Engine {
     /// models that don't take the whisper run extension.
     run_ext: Option<transcribe_cpp::RunExtension>,
     chinese_converter: ChineseConverter,
+    filler_filter: FillerFilter,
     /// Status reported once loading succeeded; carries a warning when the
     /// translate setting can't do what the user expects with this model.
     ready_status: &'static str,
@@ -73,6 +75,7 @@ impl Engine {
         translate: bool,
         threads: i32,
         chinese_output: ChineseOutput,
+        filler_filter: FillerFilter,
     ) -> Result<Engine, String> {
         if !model_path.is_file() {
             return Err(format!("model file not found: {}", model_path.display()));
@@ -147,6 +150,7 @@ impl Engine {
             task,
             run_ext,
             chinese_converter,
+            filler_filter,
             ready_status,
             streaming_supported,
             streaming_languages: capabilities.languages,
@@ -196,8 +200,10 @@ impl Engine {
             .map_err(|e| e.to_string())
     }
 
-    pub fn convert_text(&self, text: &str) -> String {
-        self.chinese_converter.convert(text)
+    pub fn convert_text(&mut self, text: &str) -> String {
+        self.filler_filter.reload_if_changed();
+        let s = self.chinese_converter.convert(text);
+        self.filler_filter.filter(&s)
     }
 
     /// Transcribes 16 kHz mono f32 samples to text. Input longer than
@@ -245,7 +251,7 @@ impl Engine {
                 ..Default::default()
             };
             match self.session.run(samples, &opts) {
-                Ok(t) => return Ok(self.chinese_converter.convert(&t.text)),
+                Ok(t) => return Ok(self.convert_text(&t.text)),
                 Err(transcribe_cpp::Error::Unsupported(msg)) if self.language.is_some() => {
                     let lang = self.language.as_ref().unwrap().clone();
                     self.language = next_language_after_rejection(&lang, self.language_strict)?;
@@ -585,6 +591,8 @@ fn do_load(env: &mut JNIEnv, context: &JObject) -> Result<(), String> {
     let active_model_name = read_config(&files_dir.join(ACTIVE_MODEL_FILE))
         .filter(|s| !s.trim().is_empty());
 
+    let filler_filter = FillerFilter::load_from_dir(&files_dir);
+
     if let Some(name) = active_model_name {
         let path = files_dir.join("models").join(&name);
         notify_status(env, context, &format!("Loading model {}...", name));
@@ -595,6 +603,7 @@ fn do_load(env: &mut JNIEnv, context: &JObject) -> Result<(), String> {
             translate,
             threads,
             chinese_output,
+            filler_filter,
         ) {
             Ok(engine) => {
                 let status = engine.ready_status;
@@ -637,6 +646,7 @@ fn do_load(env: &mut JNIEnv, context: &JObject) -> Result<(), String> {
 
     notify_status(env, context, "Loading model...");
 
+    let filler_filter = FillerFilter::load_from_dir(&files_dir);
     match Engine::load(
         &path,
         language,
@@ -644,6 +654,7 @@ fn do_load(env: &mut JNIEnv, context: &JObject) -> Result<(), String> {
         translate,
         threads,
         chinese_output,
+        filler_filter,
     ) {
         Ok(engine) => {
             let status = engine.ready_status;

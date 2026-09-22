@@ -112,6 +112,13 @@ public class MainActivity extends AppCompatActivity {
         bindMarkerSwitch(R.id.switch_auto_stop, "auto_stop", false);
         bindMarkerSwitch(R.id.switch_ime_streaming, "ime_streaming", false);
 
+        View rowFillerFilter = findViewById(R.id.row_filler_filter);
+        if (rowFillerFilter != null) {
+            rowFillerFilter.setOnClickListener(v ->
+                    startActivity(new Intent(this, FillerFilterActivity.class)));
+        }
+        updateFillerFilterStatus();
+
         // Live subtitle line limit: 2 (default), 4, or 0 = unlimited.
         RadioGroup subsLinesGroup = findViewById(R.id.rg_subtitle_lines);
         int subsLines = SubtitlePrefs.getMaxLines(this);
@@ -197,7 +204,19 @@ public class MainActivity extends AppCompatActivity {
         // Re-check on return from the keyboard chooser, settings, or a test run.
         updateVoiceInputStatus();
         updateWpmStats();
+        updateFillerFilterStatus();
         handleOpenStatsIntent(getIntent());
+    }
+
+    private void updateFillerFilterStatus() {
+        TextView statusView = findViewById(R.id.text_filler_filter_status);
+        if (statusView == null) return;
+        FillerFilterPrefs prefs = FillerFilterPrefs.load(this);
+        if (prefs.enabled) {
+            statusView.setText(getString(R.string.filler_filter_status_on, prefs.getActiveWordCount()));
+        } else {
+            statusView.setText(R.string.filler_filter_status_off);
+        }
     }
 
     /**
