@@ -64,6 +64,7 @@ pub struct Engine {
     /// translate setting can't do what the user expects with this model.
     ready_status: &'static str,
     streaming_supported: bool,
+    streaming_ext: Option<transcribe_cpp::StreamExtension>,
     streaming_languages: Vec<String>,
 }
 
@@ -124,12 +125,53 @@ impl Engine {
             None
         };
         let capabilities = model.capabilities();
-        let streaming_supported = capabilities.supports_streaming
-            && model.variant().contains("nemotron-3.5")
-            && model.accepts_ext(
+        let (streaming_supported, streaming_ext) = if capabilities.supports_streaming {
+            if model.accepts_ext(
                 transcribe_cpp::ExtSlot::Stream,
                 transcribe_cpp::sys::TRANSCRIBE_EXT_KIND_PARAKEET_STREAM,
-            );
+            ) {
+                (
+                    true,
+                    Some(transcribe_cpp::StreamExtension::ParakeetStream(
+                        transcribe_cpp::ParakeetStreamOptions::default(),
+                    )),
+                )
+            } else if model.accepts_ext(
+                transcribe_cpp::ExtSlot::Stream,
+                transcribe_cpp::sys::TRANSCRIBE_EXT_KIND_PARAKEET_BUFFERED_STREAM,
+            ) {
+                (
+                    true,
+                    Some(transcribe_cpp::StreamExtension::ParakeetBuffered(
+                        transcribe_cpp::ParakeetBufferedStreamOptions::default(),
+                    )),
+                )
+            } else if model.accepts_ext(
+                transcribe_cpp::ExtSlot::Stream,
+                transcribe_cpp::sys::TRANSCRIBE_EXT_KIND_MOONSHINE_STREAMING_STREAM,
+            ) {
+                (
+                    true,
+                    Some(transcribe_cpp::StreamExtension::MoonshineStreaming(
+                        transcribe_cpp::MoonshineStreamingOptions::default(),
+                    )),
+                )
+            } else if model.accepts_ext(
+                transcribe_cpp::ExtSlot::Stream,
+                transcribe_cpp::sys::TRANSCRIBE_EXT_KIND_VOXTRAL_REALTIME_STREAM,
+            ) {
+                (
+                    true,
+                    Some(transcribe_cpp::StreamExtension::VoxtralRealtime(
+                        transcribe_cpp::VoxtralRealtimeStreamOptions::default(),
+                    )),
+                )
+            } else {
+                (false, None)
+            }
+        } else {
+            (false, None)
+        };
 
         log::info!(
             "engine: {} threads, task {:?}, single-pass decode: {}",
@@ -153,6 +195,7 @@ impl Engine {
             filler_filter,
             ready_status,
             streaming_supported,
+            streaming_ext,
             streaming_languages: capabilities.languages,
         })
     }
@@ -161,8 +204,8 @@ impl Engine {
         self.streaming_supported
     }
 
-    /// Begin the model-specific cache-aware streaming path. The returned
-    /// stream must remain on the same worker that owns this Engine borrow.
+    /// Begin the model-specific streaming path. The returned stream must remain
+    /// on the same worker that owns this Engine borrow.
     pub fn begin_streaming(&mut self) -> Result<transcribe_cpp::Stream<'_>, String> {
         if !self.streaming_supported {
             return Err("this model does not support keyboard streaming".into());
@@ -170,26 +213,24 @@ impl Engine {
         let stream = transcribe_cpp::StreamOptions {
             commit_policy: transcribe_cpp::CommitPolicy::OnFinalize,
             stable_prefix_agreement_n: 0,
-            family: Some(transcribe_cpp::StreamExtension::ParakeetStream(
-                transcribe_cpp::ParakeetStreamOptions {
-                    // The validated Nemotron setting is the default right
-                    // context (13 * 80 ms = 1.04 s lookahead).
-                    att_context_right: Some(13),
-                },
-            )),
+            family: self.streaming_ext.clone(),
         };
-        if let Some(language) = self.language.clone() {
-            if !self
-                .streaming_languages
-                .iter()
-                .any(|supported| supported.eq_ignore_ascii_case(&language))
+        while let Some(language) = self.language.clone() {
+            if !self.streaming_languages.is_empty()
+                && !self
+                    .streaming_languages
+                    .iter()
+                    .any(|supported| supported.eq_ignore_ascii_case(&language))
             {
                 self.language = next_language_after_rejection(&language, self.language_strict)?;
+            } else {
+                break;
             }
         }
         let run = transcribe_cpp::RunOptions {
             language: self.language.clone(),
-            task: self.task,
+            // Streaming API explicitly rejects translation, so force Transcribe.
+            task: transcribe_cpp::Task::Transcribe,
             // Whisper's run extension belongs to the run slot and must not
             // be passed to a stream.
             family: None,

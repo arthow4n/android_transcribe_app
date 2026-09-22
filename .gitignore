@@ -40,3 +40,6 @@ app/src/main/jniLibs/
 # macOS
 .DS_Store
 ._*
+
+# Vendored reference sources
+/.vendor/
