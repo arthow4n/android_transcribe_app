@@ -9,18 +9,20 @@ use ferrous_opencc::{config::BuiltinConfig, OpenCC};
 /// Persisted values written by `ModelsActivity`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ChineseOutput {
-    #[default]
     AsTranscribed,
     Simplified,
+    #[default]
     TraditionalTaiwan,
 }
 
 impl ChineseOutput {
     pub fn from_setting(value: Option<&str>) -> Self {
         match value {
+            Some("none") | Some("as_transcribed") => Self::AsTranscribed,
             Some("simplified") => Self::Simplified,
             Some("traditional_tw") => Self::TraditionalTaiwan,
-            _ => Self::AsTranscribed,
+            None => Self::TraditionalTaiwan,
+            _ => Self::TraditionalTaiwan,
         }
     }
 }
@@ -53,13 +55,25 @@ mod tests {
     use super::*;
 
     #[test]
-    fn unknown_or_missing_setting_disables_conversion() {
+    fn default_setting_is_traditional_taiwan() {
         assert_eq!(
             ChineseOutput::from_setting(None),
+            ChineseOutput::TraditionalTaiwan
+        );
+        assert_eq!(
+            ChineseOutput::default(),
+            ChineseOutput::TraditionalTaiwan
+        );
+    }
+
+    #[test]
+    fn explicit_none_disables_conversion() {
+        assert_eq!(
+            ChineseOutput::from_setting(Some("none")),
             ChineseOutput::AsTranscribed
         );
         assert_eq!(
-            ChineseOutput::from_setting(Some("unknown")),
+            ChineseOutput::from_setting(Some("as_transcribed")),
             ChineseOutput::AsTranscribed
         );
     }

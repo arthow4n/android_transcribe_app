@@ -243,12 +243,17 @@ public class ModelsActivity extends AppCompatActivity {
 
     // --- Chinese output conversion -----------------------------------------
 
+    public static final String CHINESE_OUTPUT_NONE = "none";
+    public static final String CHINESE_OUTPUT_SIMPLIFIED = "simplified";
+    public static final String CHINESE_OUTPUT_TRADITIONAL_TW = "traditional_tw";
+    public static final String DEFAULT_CHINESE_OUTPUT = CHINESE_OUTPUT_TRADITIONAL_TW;
+
     private static final String[] CHINESE_OUTPUT_VALUES = {
-            "", "simplified", "traditional_tw"
+            CHINESE_OUTPUT_NONE, CHINESE_OUTPUT_SIMPLIFIED, CHINESE_OUTPUT_TRADITIONAL_TW
     };
 
     private void setupChineseOutputSpinner() {
-        String stored = readConfig("chinese_output");
+        String stored = getChineseOutputConfig();
         int[] labelIds = {
                 R.string.models_chinese_output_none,
                 R.string.models_chinese_output_simplified,
@@ -263,12 +268,15 @@ public class ModelsActivity extends AppCompatActivity {
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         chineseOutputSpinner.setAdapter(adapter);
         int selected = Arrays.asList(CHINESE_OUTPUT_VALUES).indexOf(stored);
+        if (selected < 0) {
+            selected = Arrays.asList(CHINESE_OUTPUT_VALUES).indexOf(DEFAULT_CHINESE_OUTPUT);
+        }
         chineseOutputSpinner.setSelection(Math.max(0, selected), false);
         chineseOutputSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 String value = CHINESE_OUTPUT_VALUES[position];
-                if (value.equals(readConfig("chinese_output"))) return;
+                if (value.equals(getChineseOutputConfig())) return;
                 writeConfig("chinese_output", value);
                 snackbar(getString(R.string.models_chinese_output_saved));
                 statusText.setText(getString(R.string.models_loading));
@@ -279,6 +287,15 @@ public class ModelsActivity extends AppCompatActivity {
             public void onNothingSelected(AdapterView<?> parent) {
             }
         });
+    }
+
+    private String getChineseOutputConfig() {
+        File f = new File(getFilesDir(), "chinese_output");
+        if (!f.exists()) {
+            return DEFAULT_CHINESE_OUTPUT;
+        }
+        String stored = readConfig("chinese_output");
+        return stored.isEmpty() ? DEFAULT_CHINESE_OUTPUT : stored;
     }
 
     // --- Inference threads --------------------------------------------------
