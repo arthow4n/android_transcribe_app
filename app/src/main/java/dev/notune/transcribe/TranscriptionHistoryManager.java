@@ -26,6 +26,7 @@ public final class TranscriptionHistoryManager {
     private static final String HISTORY_FILE = "dictation_history.json";
     private static final String PRIVATE_MODE_MARKER = "incognito_mode";
     private static final int MAX_HISTORY = 50;
+    public static final long RETENTION_MS = 10 * 60 * 1000L; // 10 minutes
     private static final Object LOCK = new Object();
 
     // ID of the in-flight draft for the current recording session
@@ -218,7 +219,25 @@ public final class TranscriptionHistoryManager {
         return days + "d ago";
     }
 
+    private static boolean pruneExpired(List<HistoryEntry> list, long now) {
+        boolean pruned = false;
+        Iterator<HistoryEntry> it = list.iterator();
+        while (it.hasNext()) {
+            HistoryEntry e = it.next();
+            if (now - e.timestamp > RETENTION_MS) {
+                if (activeDraftId != null && activeDraftId.equals(e.id)) {
+                    activeDraftId = null;
+                }
+                it.remove();
+                pruned = true;
+            }
+        }
+        return pruned;
+    }
+
     private static void trimInternal(List<HistoryEntry> list) {
+        long now = System.currentTimeMillis();
+        pruneExpired(list, now);
         while (list.size() > MAX_HISTORY) {
             list.remove(list.size() - 1);
         }
@@ -241,6 +260,13 @@ public final class TranscriptionHistoryManager {
         } catch (Exception e) {
             Log.w(TAG, "Error loading history, starting fresh: " + e.getMessage());
         }
+
+        long now = System.currentTimeMillis();
+        boolean pruned = pruneExpired(list, now);
+        if (pruned) {
+            saveEntriesInternal(context, list);
+        }
+
         return list;
     }
 

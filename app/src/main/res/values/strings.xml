@@ -187,7 +187,8 @@
     <string name="ime_privacy_mode">Private Mode</string>
     <string name="ime_history_button">Recent Transcriptions</string>
     <string name="ime_history_title">Recent Transcriptions</string>
-    <string name="ime_history_empty">No recent transcriptions</string>
+    <string name="ime_history_retention_notice">Retained for 10 minutes</string>
+    <string name="ime_history_empty">No transcriptions from the last 10 minutes</string>
     <string name="ime_history_clear_all">Clear all history</string>
     <string name="ime_history_clear_confirm">Clear all recent transcriptions?</string>
     <string name="ime_history_close">Close history</string>
