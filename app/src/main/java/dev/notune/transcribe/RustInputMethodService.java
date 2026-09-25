@@ -62,6 +62,14 @@ public class RustInputMethodService extends InputMethodService {
     private MicLevelView micLevelView;
     private View recordCircle;
     private MaterialButtonToggleGroup languageGroup;
+    private android.widget.ImageView privacyToggleButton;
+    private android.widget.ImageView historyButton;
+    private View historyContainer;
+    private android.widget.ImageView historyClearAllButton;
+    private android.widget.ImageView historyCloseButton;
+    private LinearLayout historyItemsContainer;
+    private TextView historyEmptyView;
+    private boolean isHistoryVisible = false;
     private ArrayAdapter<String> modelAdapter;
     private final ArrayList<String> modelFiles = new ArrayList<>();
     private boolean updatingModelSpinner = false;
@@ -174,6 +182,44 @@ public class RustInputMethodService extends InputMethodService {
             enterButton = view.findViewById(R.id.ime_enter);
             switchKeyboardButton = view.findViewById(R.id.ime_switch_keyboard);
             languageGroup = view.findViewById(R.id.ime_language_group);
+
+            privacyToggleButton = view.findViewById(R.id.ime_privacy_toggle);
+            historyButton = view.findViewById(R.id.ime_history_button);
+            historyContainer = view.findViewById(R.id.ime_history_container);
+            historyClearAllButton = view.findViewById(R.id.ime_history_clear_all);
+            historyCloseButton = view.findViewById(R.id.ime_history_close);
+            historyItemsContainer = view.findViewById(R.id.ime_history_items_container);
+            historyEmptyView = view.findViewById(R.id.ime_history_empty);
+
+            if (privacyToggleButton != null) {
+                updatePrivacyToggleUI();
+                privacyToggleButton.setOnClickListener(v -> {
+                    boolean current = TranscriptionHistoryManager.isPrivateMode(this);
+                    TranscriptionHistoryManager.setPrivateMode(this, !current);
+                    updatePrivacyToggleUI();
+                    android.widget.Toast.makeText(this, !current
+                            ? R.string.ime_privacy_toast_on
+                            : R.string.ime_privacy_toast_off,
+                            android.widget.Toast.LENGTH_SHORT).show();
+                });
+            }
+
+            if (historyButton != null) {
+                historyButton.setOnClickListener(v -> toggleHistoryView());
+            }
+
+            if (historyCloseButton != null) {
+                historyCloseButton.setOnClickListener(v -> showHistoryView(false));
+            }
+
+            if (historyClearAllButton != null) {
+                historyClearAllButton.setOnClickListener(v -> {
+                    TranscriptionHistoryManager.clearAll(this);
+                    loadHistoryItems();
+                    android.widget.Toast.makeText(this, R.string.ime_history_empty,
+                            android.widget.Toast.LENGTH_SHORT).show();
+                });
+            }
 
             setupModelSpinner();
             setupLanguageShortcuts();
@@ -353,6 +399,7 @@ public class RustInputMethodService extends InputMethodService {
         super.onWindowShown();
         boolean wasVisible = windowVisible;
         windowVisible = true;
+        updatePrivacyToggleUI();
         if (!isRecording) {
             refreshModelSpinner();
             showLastWpmIfAvailable();
@@ -385,6 +432,7 @@ public class RustInputMethodService extends InputMethodService {
     public void onWindowHidden() {
         super.onWindowHidden();
         windowVisible = false;
+        showHistoryView(false);
         if (isRecording) {
             if (isStopOnHideEnabled()) {
                 // Opt-in behavior: discard the recording when the keyboard hides.
@@ -438,6 +486,10 @@ public class RustInputMethodService extends InputMethodService {
         boolean wasRecording = isRecording;
         isRecording = recording;
         if (recording && !wasRecording) {
+            if (isHistoryVisible) {
+                showHistoryView(false);
+            }
+            TranscriptionHistoryManager.startSession();
             recordingStartedAtMs = android.os.SystemClock.elapsedRealtime();
             lastRecordingDurationMs = 0L;
             processedAudioMs = 0L;
@@ -728,6 +780,15 @@ public class RustInputMethodService extends InputMethodService {
             lastRecordingDurationMs = 0L;
             String currentLang = readConfig("model_language");
             String currentModel = readConfig("active_model");
+            TranscriptionHistoryManager.finalizeEntry(
+                    RustInputMethodService.this,
+                    text,
+                    currentLang,
+                    currentModel,
+                    dur);
+            if (isHistoryVisible) {
+                loadHistoryItems();
+            }
             DictationStatsManager.SessionRecord session = DictationStatsManager.recordPaste(
                     RustInputMethodService.this, text, dur, currentLang, currentModel);
             if (session != null) {
@@ -770,6 +831,115 @@ public class RustInputMethodService extends InputMethodService {
         if (ic != null) {
             commitTranscribedText(ic, pendingCommitText);
             pendingCommitText = null;
+        }
+    }
+
+    // Called from Rust streaming worker on each partial hypothesis
+    public void onStreamingPartialText(String partialText) {
+        mainHandler.post(() -> {
+            if (partialText != null && !partialText.trim().isEmpty()) {
+                TranscriptionHistoryManager.updateDraft(
+                        RustInputMethodService.this,
+                        partialText.trim(),
+                        readConfig("model_language"),
+                        readConfig("active_model"));
+                if (isHistoryVisible) {
+                    loadHistoryItems();
+                }
+            }
+        });
+    }
+
+    private void toggleHistoryView() {
+        showHistoryView(!isHistoryVisible);
+    }
+
+    private void showHistoryView(boolean show) {
+        isHistoryVisible = show;
+        if (historyContainer != null) {
+            historyContainer.setVisibility(show ? View.VISIBLE : View.GONE);
+        }
+        if (recordContainer != null) {
+            recordContainer.setVisibility(show ? View.GONE : View.VISIBLE);
+        }
+        if (languageGroup != null) {
+            languageGroup.setVisibility(show ? View.GONE : View.VISIBLE);
+        }
+        if (historyButton != null) {
+            int activeColor = MaterialColors.getColor(historyButton,
+                    com.google.android.material.R.attr.colorPrimary);
+            int inactiveColor = MaterialColors.getColor(historyButton,
+                    com.google.android.material.R.attr.colorOnSurfaceVariant);
+            historyButton.setColorFilter(show ? activeColor : inactiveColor);
+        }
+        if (show) {
+            loadHistoryItems();
+        }
+    }
+
+    private void updatePrivacyToggleUI() {
+        if (privacyToggleButton == null) return;
+        boolean isPrivate = TranscriptionHistoryManager.isPrivateMode(this);
+        if (isPrivate) {
+            int errorColor = MaterialColors.getColor(privacyToggleButton,
+                    com.google.android.material.R.attr.colorError);
+            privacyToggleButton.setColorFilter(errorColor);
+            privacyToggleButton.setAlpha(1.0f);
+            privacyToggleButton.setContentDescription(
+                    getString(R.string.ime_privacy_mode) + ": " + getString(R.string.status_ready));
+        } else {
+            int normalColor = MaterialColors.getColor(privacyToggleButton,
+                    com.google.android.material.R.attr.colorOnSurfaceVariant);
+            privacyToggleButton.setColorFilter(normalColor);
+            privacyToggleButton.setAlpha(0.6f);
+            privacyToggleButton.setContentDescription(getString(R.string.ime_privacy_mode));
+        }
+    }
+
+    private void loadHistoryItems() {
+        if (historyItemsContainer == null) return;
+        historyItemsContainer.removeAllViews();
+        List<TranscriptionHistoryManager.HistoryEntry> entries =
+                TranscriptionHistoryManager.getHistory(this);
+        if (entries.isEmpty()) {
+            if (historyEmptyView != null) historyEmptyView.setVisibility(View.VISIBLE);
+            return;
+        }
+        if (historyEmptyView != null) historyEmptyView.setVisibility(View.GONE);
+
+        LayoutInflater inflater = LayoutInflater.from(historyItemsContainer.getContext());
+        for (TranscriptionHistoryManager.HistoryEntry entry : entries) {
+            View itemView = inflater.inflate(R.layout.item_ime_history, historyItemsContainer, false);
+            TextView textView = itemView.findViewById(R.id.history_item_text);
+            TextView metaView = itemView.findViewById(R.id.history_item_meta);
+            View deleteButton = itemView.findViewById(R.id.history_item_delete);
+
+            if (entry.isDraft) {
+                textView.setText(getString(R.string.ime_history_draft_prefix) + entry.text);
+            } else {
+                textView.setText(entry.text);
+            }
+
+            String relTime = TranscriptionHistoryManager.formatRelativeTime(entry.timestamp);
+            String meta = relTime + " · " + entry.language + (entry.isDraft ? " · Draft" : "");
+            metaView.setText(meta);
+
+            itemView.setOnClickListener(v -> {
+                InputConnection ic = getCurrentInputConnection();
+                if (ic != null) {
+                    String toPaste = appendSpaceEnabled() && !Character.isWhitespace(
+                            entry.text.charAt(entry.text.length() - 1)) ? entry.text + " " : entry.text;
+                    commitTranscribedText(ic, toPaste);
+                }
+                showHistoryView(false);
+            });
+
+            deleteButton.setOnClickListener(v -> {
+                TranscriptionHistoryManager.deleteEntry(this, entry.id);
+                loadHistoryItems();
+            });
+
+            historyItemsContainer.addView(itemView);
         }
     }
     public void onAudioLevel(float level) {

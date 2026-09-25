@@ -182,5 +182,20 @@
     <string name="filler_filter_test_output_label">Filtered output:</string>
     <string name="filler_filter_status_on">%1$d words active</string>
     <string name="filler_filter_status_off">Disabled</string>
+
+    <!-- Transcription History & Privacy Mode -->
+    <string name="ime_privacy_mode">Private Mode</string>
+    <string name="ime_history_button">Recent Transcriptions</string>
+    <string name="ime_history_title">Recent Transcriptions</string>
+    <string name="ime_history_empty">No recent transcriptions</string>
+    <string name="ime_history_clear_all">Clear all history</string>
+    <string name="ime_history_clear_confirm">Clear all recent transcriptions?</string>
+    <string name="ime_history_close">Close history</string>
+    <string name="ime_history_delete_item">Delete entry</string>
+    <string name="ime_history_draft_prefix">[Draft] </string>
+    <string name="ime_privacy_toast_on">Private mode enabled: transcriptions will not be saved</string>
+    <string name="ime_privacy_toast_off">History enabled: transcriptions saved locally</string>
+    <string name="setting_private_mode">Private mode (incognito)</string>
+    <string name="setting_private_mode_desc">Do not retain recent transcriptions in keyboard history</string>
 </resources>
 

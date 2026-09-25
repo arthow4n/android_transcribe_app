@@ -36,6 +36,34 @@
                 android:layout_width="24dp"
                 android:layout_height="24dp"
                 android:visibility="gone"/>
+
+            <ImageView
+                android:id="@+id/ime_privacy_toggle"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:padding="6dp"
+                android:src="@drawable/ic_incognito"
+                android:scaleType="centerInside"
+                android:tint="?attr/colorOnSurfaceVariant"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:focusable="true"
+                android:layout_marginStart="4dp"
+                android:contentDescription="@string/ime_privacy_mode"/>
+
+            <ImageView
+                android:id="@+id/ime_history_button"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:padding="6dp"
+                android:src="@drawable/ic_history"
+                android:scaleType="centerInside"
+                android:tint="?attr/colorOnSurfaceVariant"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:focusable="true"
+                android:layout_marginStart="2dp"
+                android:contentDescription="@string/ime_history_button"/>
         </LinearLayout>
 
         <!-- WPM of the last paste, shown directly below the status line -->
@@ -74,6 +102,89 @@
         android:paddingEnd="4dp"
         android:paddingBottom="8dp"
         android:visibility="gone"/>
+
+    <!-- History View: shown instead of record area when history button is tapped -->
+    <LinearLayout
+        android:id="@+id/ime_history_container"
+        android:layout_width="match_parent"
+        android:layout_height="248dp"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <!-- History header -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingBottom="6dp">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/ime_history_title"
+                android:textAppearance="?attr/textAppearanceTitleSmall"
+                android:textColor="?attr/colorOnSurface"
+                android:paddingStart="4dp"/>
+
+            <ImageView
+                android:id="@+id/ime_history_clear_all"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:padding="6dp"
+                android:src="@drawable/ic_delete"
+                android:scaleType="centerInside"
+                android:tint="?attr/colorOnSurfaceVariant"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:focusable="true"
+                android:contentDescription="@string/ime_history_clear_all"/>
+
+            <ImageView
+                android:id="@+id/ime_history_close"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:padding="6dp"
+                android:src="@drawable/ic_close"
+                android:scaleType="centerInside"
+                android:tint="?attr/colorOnSurfaceVariant"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:focusable="true"
+                android:contentDescription="@string/ime_history_close"/>
+        </LinearLayout>
+
+        <!-- Scrollable list of recent items -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1">
+
+            <ScrollView
+                android:id="@+id/ime_history_scroll"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:fillViewport="true">
+
+                <LinearLayout
+                    android:id="@+id/ime_history_items_container"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"/>
+            </ScrollView>
+
+            <TextView
+                android:id="@+id/ime_history_empty"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:text="@string/ime_history_empty"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:textAppearance="?attr/textAppearanceBodyMedium"
+                android:visibility="gone"/>
+        </FrameLayout>
+    </LinearLayout>
 
     <!-- Record area: pulsing mic-level glow behind a circular record button -->
     <FrameLayout

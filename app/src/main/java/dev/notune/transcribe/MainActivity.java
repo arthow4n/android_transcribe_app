@@ -113,6 +113,7 @@ public class MainActivity extends AppCompatActivity {
         bindMarkerSwitch(R.id.switch_auto_stop, "auto_stop", false);
         // Process while recording defaults to ON; its marker file is the opt-out.
         bindMarkerSwitch(R.id.switch_ime_streaming, "no_ime_streaming", true);
+        bindMarkerSwitch(R.id.switch_private_mode, "incognito_mode", false);
 
         View rowFillerFilter = findViewById(R.id.row_filler_filter);
         if (rowFillerFilter != null) {
@@ -445,6 +446,7 @@ public class MainActivity extends AppCompatActivity {
                 .setMessage(R.string.wpm_reset_confirm_msg)
                 .setPositiveButton(R.string.btn_wpm_reset, (dialog, which) -> {
                     DictationStatsManager.clearStats(this);
+                    TranscriptionHistoryManager.clearAll(this);
                     updateWpmStats();
                     snackbar(getString(R.string.wpm_reset_done));
                 })

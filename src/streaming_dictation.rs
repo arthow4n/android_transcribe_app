@@ -121,6 +121,22 @@ fn notify_text(jvm: &JavaVM, target: &GlobalRef, text: &str) {
     }
 }
 
+fn notify_partial_text(jvm: &JavaVM, target: &GlobalRef, text: &str) {
+    if let Ok(mut env) = jvm.attach_current_thread() {
+        if let Ok(msg) = env.new_string(text) {
+            if let Err(error) = env.call_method(
+                target.as_obj(),
+                "onStreamingPartialText",
+                "(Ljava/lang/String;)V",
+                &[(&msg).into()],
+            ) {
+                let _ = env.exception_clear();
+                log::debug!("streaming partial text callback failed: {error}");
+            }
+        }
+    }
+}
+
 fn notify_stats(
     jvm: &JavaVM,
     target: &GlobalRef,
@@ -323,6 +339,9 @@ fn run_worker(
                         current_speed,
                         average_speed,
                     );
+                    if !snapshot.full.trim().is_empty() {
+                        notify_partial_text(&jvm, &target, &snapshot.full);
+                    }
                     if last_stats_log.elapsed() >= Duration::from_secs(1) {
                         log::debug!(
                             "stream metrics: audio={}ms current={:.3}x average={:.3}x",
