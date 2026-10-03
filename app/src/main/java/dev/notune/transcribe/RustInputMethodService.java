@@ -16,6 +16,8 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 import android.content.Context;
+import android.content.ClipboardManager;
+import android.content.ClipData;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.view.MotionEvent;
@@ -62,6 +64,7 @@ public class RustInputMethodService extends InputMethodService {
     private MicLevelView micLevelView;
     private View recordCircle;
     private MaterialButtonToggleGroup languageGroup;
+    private android.widget.ImageView pasteButton;
     private android.widget.ImageView privacyToggleButton;
     private android.widget.ImageView historyButton;
     private View historyContainer;
@@ -183,6 +186,7 @@ public class RustInputMethodService extends InputMethodService {
             switchKeyboardButton = view.findViewById(R.id.ime_switch_keyboard);
             languageGroup = view.findViewById(R.id.ime_language_group);
 
+            pasteButton = view.findViewById(R.id.ime_paste_button);
             privacyToggleButton = view.findViewById(R.id.ime_privacy_toggle);
             historyButton = view.findViewById(R.id.ime_history_button);
             historyContainer = view.findViewById(R.id.ime_history_container);
@@ -190,6 +194,14 @@ public class RustInputMethodService extends InputMethodService {
             historyCloseButton = view.findViewById(R.id.ime_history_close);
             historyItemsContainer = view.findViewById(R.id.ime_history_items_container);
             historyEmptyView = view.findViewById(R.id.ime_history_empty);
+
+            if (pasteButton != null) {
+                pasteButton.setOnClickListener(v -> pasteClipboardText());
+                pasteButton.setOnLongClickListener(v -> {
+                    previewClipboardText();
+                    return true;
+                });
+            }
 
             if (privacyToggleButton != null) {
                 updatePrivacyToggleUI();
@@ -1126,6 +1138,62 @@ public class RustInputMethodService extends InputMethodService {
             if (et != null && et.text != null) {
                 ic.setSelection(0, et.text.length());
             }
+        }
+    }
+
+    private void pasteClipboardText() {
+        InputConnection ic = getCurrentInputConnection();
+        if (ic == null) return;
+
+        ClipboardManager clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+        if (clipboard == null || !clipboard.hasPrimaryClip()) {
+            android.widget.Toast.makeText(this, R.string.ime_paste_empty,
+                    android.widget.Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        ClipData clip = clipboard.getPrimaryClip();
+        if (clip == null || clip.getItemCount() == 0) {
+            android.widget.Toast.makeText(this, R.string.ime_paste_empty,
+                    android.widget.Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        CharSequence text = clip.getItemAt(0).coerceToText(this);
+        if (text == null || text.length() == 0) {
+            android.widget.Toast.makeText(this, R.string.ime_paste_empty,
+                    android.widget.Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        if (pasteButton != null) {
+            pasteButton.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP);
+        }
+
+        if (!ic.performContextMenuAction(android.R.id.paste)) {
+            ic.commitText(text, 1);
+        }
+    }
+
+    private void previewClipboardText() {
+        try {
+            ClipboardManager cb = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+            if (cb != null && cb.hasPrimaryClip()) {
+                ClipData c = cb.getPrimaryClip();
+                if (c != null && c.getItemCount() > 0) {
+                    CharSequence t = c.getItemAt(0).coerceToText(this);
+                    if (t != null && t.length() > 0) {
+                        String preview = t.length() > 60 ? t.subSequence(0, 60) + "…" : t.toString();
+                        android.widget.Toast.makeText(this, getString(R.string.ime_paste_preview, preview),
+                                android.widget.Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                }
+            }
+            android.widget.Toast.makeText(this, R.string.ime_paste_empty,
+                    android.widget.Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to preview clipboard: " + e.getMessage());
         }
     }
 

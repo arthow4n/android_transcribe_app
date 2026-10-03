@@ -198,5 +198,10 @@
     <string name="ime_privacy_toast_off">History enabled: transcriptions saved locally</string>
     <string name="setting_private_mode">Private mode (incognito)</string>
     <string name="setting_private_mode_desc">Do not retain recent transcriptions in keyboard history</string>
+
+    <!-- Keyboard Toolbar Paste -->
+    <string name="ime_paste_button">Paste from clipboard</string>
+    <string name="ime_paste_empty">Clipboard is empty</string>
+    <string name="ime_paste_preview">Clipboard: %1$s</string>
 </resources>
 
