@@ -514,29 +514,58 @@ public class RustInputMethodService extends InputMethodService {
         }
         tintRecordButton(recording);
         if (recording) {
-            statusView.setText("Listening...");
-            hintView.setText("Tap to Stop");
+            if (statusView != null) statusView.setText("Listening... (tap to stop)");
+            if (hintView != null) hintView.setVisibility(View.GONE);
+            if (progressBar != null) progressBar.setVisibility(View.GONE);
+            if (micIcon != null) micIcon.setVisibility(View.VISIBLE);
         } else {
-            statusView.setText("Processing...");
-            hintView.setText("Tap to Record");
+            boolean isProcessing = isProcessingStatus();
+            if (isProcessing) {
+                if (statusView != null) statusView.setText("Processing...");
+                if (hintView != null) {
+                    hintView.setText("Finishing dictation...");
+                    hintView.setVisibility(View.VISIBLE);
+                }
+                if (progressBar != null) progressBar.setVisibility(View.VISIBLE);
+                if (micIcon != null) micIcon.setVisibility(View.GONE);
+            } else {
+                if (statusView != null) statusView.setText("Tap to speak");
+                if (hintView != null) hintView.setVisibility(View.GONE);
+                if (progressBar != null) progressBar.setVisibility(View.GONE);
+                if (micIcon != null) micIcon.setVisibility(View.VISIBLE);
+            }
             if (micLevelView != null) micLevelView.setLevel(0f);
         }
     }
 
-    /** Tints the round record button + mic: idle = primary, recording = error. */
+    /** Tints the record button surface + mic/text: idle = primary container, recording = primary, processing = secondary container. */
     private void tintRecordButton(boolean recording) {
-        int circleAttr = recording
-                ? com.google.android.material.R.attr.colorPrimary
-                : com.google.android.material.R.attr.colorPrimaryContainer;
-        int iconAttr = recording
-                ? com.google.android.material.R.attr.colorOnPrimary
-                : com.google.android.material.R.attr.colorOnPrimaryContainer;
+        boolean isBusy = !recording && isProcessingStatus();
+        int circleAttr;
+        int iconAttr;
+        if (recording) {
+            circleAttr = com.google.android.material.R.attr.colorPrimary;
+            iconAttr = com.google.android.material.R.attr.colorOnPrimary;
+        } else if (isBusy) {
+            circleAttr = com.google.android.material.R.attr.colorSecondaryContainer;
+            iconAttr = com.google.android.material.R.attr.colorOnSecondaryContainer;
+        } else {
+            circleAttr = com.google.android.material.R.attr.colorPrimaryContainer;
+            iconAttr = com.google.android.material.R.attr.colorOnPrimaryContainer;
+        }
         if (recordCircle != null) {
             recordCircle.setBackgroundTintList(ColorStateList.valueOf(
                     MaterialColors.getColor(recordCircle, circleAttr)));
         }
         if (micIcon != null) {
             micIcon.setColorFilter(MaterialColors.getColor(micIcon, iconAttr));
+        }
+        if (statusView != null) {
+            statusView.setTextColor(MaterialColors.getColor(statusView, iconAttr));
+        }
+        if (progressBar != null) {
+            progressBar.setIndeterminateTintList(ColorStateList.valueOf(
+                    MaterialColors.getColor(progressBar, iconAttr)));
         }
     }
 
@@ -689,6 +718,10 @@ public class RustInputMethodService extends InputMethodService {
         boolean noModelInstalled = !ModelUtils.hasAnyModelInstalled(this);
         boolean noModelSelected = !noModelInstalled && ModelUtils.getActiveModel(this) == null;
 
+        tintRecordButton(isRecording);
+
+        boolean isBusy = (isTranscribing || isWaiting) && !isRecording;
+
         // Don't show internal loading states to the user
         if (statusView != null && !isRecording) {
             if (noModelInstalled) {
@@ -697,29 +730,38 @@ public class RustInputMethodService extends InputMethodService {
                 statusView.setText(getString(R.string.models_none_selected));
             } else if (isError) {
                 statusView.setText(lastStatus);
-            } else if (isTranscribing || isWaiting) {
+            } else if (isBusy) {
                 statusView.setText("Processing...");
             } else {
-                statusView.setText("Tap to Record");
+                statusView.setText("Tap to speak");
             }
         }
 
         if (hintView != null && !isRecording) {
             if (noModelInstalled || noModelSelected) {
                 hintView.setText(getString(R.string.models_open_settings_hint));
+                hintView.setVisibility(View.VISIBLE);
+            } else if (isBusy) {
+                hintView.setText("Finishing dictation...");
+                hintView.setVisibility(View.VISIBLE);
+            } else {
+                hintView.setVisibility(View.GONE);
             }
         }
 
-        // Hide progress bar - don't expose model loading to user
+        // Show progress spinner in record button when busy
         if (progressBar != null) {
-            progressBar.setVisibility(View.GONE);
+            progressBar.setVisibility(isBusy ? View.VISIBLE : View.GONE);
+        }
+        if (micIcon != null) {
+            micIcon.setVisibility(isBusy ? View.GONE : View.VISIBLE);
         }
 
         // Disable button only during transcription/processing/waiting or fatal errors
         if (recordContainer != null) {
             boolean disable = isTranscribing || isWaiting || isError;
             recordContainer.setEnabled(!disable);
-            recordContainer.setAlpha(disable ? 0.5f : 1.0f);
+            recordContainer.setAlpha(disable ? 0.75f : 1.0f);
         }
 
         if (languageGroup != null) {
@@ -733,10 +775,6 @@ public class RustInputMethodService extends InputMethodService {
         // Switching models resets the shared native engine, so keep the
         // selector unavailable while a recording or model load is in flight.
         updateModelSelectorState(isRecording || isLoading || isTranscribing || isWaiting);
-
-        if (hintView != null && !isRecording) {
-            hintView.setText("Tap to Record");
-        }
     }
 
     // Called from Rust
@@ -745,7 +783,8 @@ public class RustInputMethodService extends InputMethodService {
             if (text == null || text.trim().isEmpty()) {
                 // Nothing recognized — don't insert a stray space.
                 updateRecordButtonUI(false);
-                if (statusView != null) statusView.setText("Tap to Record");
+                if (statusView != null) statusView.setText("Tap to speak");
+                if (hintView != null) hintView.setVisibility(View.GONE);
                 hideStatsIfIdle();
                 if (pauseAudioActive) {
                     audioPauser.abandon(this);
@@ -795,7 +834,8 @@ public class RustInputMethodService extends InputMethodService {
                 displayLastWpm(session);
             }
             updateRecordButtonUI(false);
-            if (statusView != null) statusView.setText("Tap to Record");
+            if (statusView != null) statusView.setText("Tap to speak");
+            if (hintView != null) hintView.setVisibility(View.GONE);
             hideStatsIfIdle();
             if (pendingSwitchBack) {
                 pendingSwitchBack = false;

@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Circular record button surface. Solid white so it can be recolored at runtime
-     via backgroundTint (primaryContainer idle, errorContainer while recording). -->
+<!-- Rounded rectangle record button surface. Solid white so it can be recolored at runtime
+     via backgroundTint (primaryContainer idle, primary while recording, secondaryContainer while processing). -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="oval">
+    android:shape="rectangle">
+    <corners android:radius="16dp" />
     <solid android:color="@android:color/white" />
 </shape>
