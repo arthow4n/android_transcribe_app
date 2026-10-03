@@ -15,6 +15,7 @@ After completing a feature or bug fix and pushing the commit to `origin`:
    - **Asset name**: `android_transcribe_app_v<version>-<feature-slug>-debug.apk`.
    - **Body**: Detailed bulleted changelog highlighting the new features/fixes and noting that the build excludes the bundled model (speech models can be downloaded or imported in-app).
    - Upload the APK as a release asset.
+   - **Response Link**: Always reply to the user with the direct link to the newly created GitHub draft release.
 
 ---
 
