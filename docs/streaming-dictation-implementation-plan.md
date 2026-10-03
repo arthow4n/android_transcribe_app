@@ -101,16 +101,17 @@ to store a Stream borrowing Session alongside its owner in VoiceSessionState,
 use unsafe lifetime extensions, or move a locked guard between threads.
 
 The microphone callback must never wait for inference, model loading, JNI, or
-engine locks. Feed captured 16 kHz mono PCM through bounded nonblocking storage.
-Use a sample-count budget (initially 30 seconds / 480,000 samples), not merely
+engine locks. Feed captured 16 kHz mono PCM through nonblocking storage.
+Use a sample-count budget (15 minutes / 14,400,000 samples at 16 kHz), not merely
 a count of callback messages. Drain into small batches on the worker; an
-initial transport target of 100 ms / 1,600 samples is reasonable. Preserve
-sample order and feed every accepted sample once, including the final short
+initial transport target of 100 ms / 1,600 samples is reasonable, coalesced up
+to ~200 ms when backlog exists to optimize mel spectrogram compute throughput.
+Preserve sample order and feed every accepted sample once, including the final short
 batch. Keep existing meter and endpointing behavior.
 
 Use a separate stop/cancel flag or control channel so a full audio queue cannot
-prevent Stop or Cancel. On overflow, fail clearly and discard the result;
-never drop audio and then report a successful transcription. Do not retain a
+prevent Stop or Cancel. If the safety limit is ever reached, finalize available
+transcribed audio gracefully rather than dropping user work. Do not retain a
 second unbounded full recording in streaming mode.
 
 Model loading may overlap capture: buffer within the same limit while waiting.

@@ -7,23 +7,23 @@
 use std::collections::VecDeque;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{self, SyncSender, TryRecvError, TrySendError};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use crossbeam_channel::{self, Receiver, Sender, TryRecvError};
 use jni::objects::GlobalRef;
 use jni::JavaVM;
 
 use crate::engine;
 
-/// Maximum queued PCM. At 16 kHz this is 30 seconds of audio.
-pub const MAX_QUEUED_SAMPLES: usize = 30 * 16_000;
+/// Maximum queued PCM. At 16 kHz this is 15 minutes of audio (~57 MB).
+pub const MAX_QUEUED_SAMPLES: usize = 15 * 60 * 16_000;
 const AUDIO_CHUNK_SAMPLES: usize = 1_600; // 100 ms
 const SAMPLE_RATE: f64 = 16_000.0;
 const SPEED_WINDOW_AUDIO_SECS: f64 = 2.0;
 
 pub struct StreamingControl {
-    sender: SyncSender<Vec<f32>>,
+    sender: Sender<Vec<f32>>,
     stop_requested: AtomicBool,
     producer_done: AtomicBool,
     cancel_requested: AtomicBool,
@@ -43,13 +43,9 @@ impl StreamingControl {
                 self.overflowed.store(true, Ordering::Release);
                 return;
             }
-            match self.sender.try_send(chunk.to_vec()) {
-                Ok(()) => {}
-                Err(TrySendError::Full(_)) | Err(TrySendError::Disconnected(_)) => {
-                    self.queued_samples.fetch_sub(chunk.len(), Ordering::AcqRel);
-                    self.overflowed.store(true, Ordering::Release);
-                    return;
-                }
+            if self.sender.send(chunk.to_vec()).is_err() {
+                self.queued_samples.fetch_sub(chunk.len(), Ordering::AcqRel);
+                return;
             }
         }
     }
@@ -249,7 +245,7 @@ pub fn start(
     jvm: Arc<JavaVM>,
     target: GlobalRef,
 ) -> Arc<StreamingControl> {
-    let (sender, receiver) = mpsc::sync_channel(MAX_QUEUED_SAMPLES / AUDIO_CHUNK_SAMPLES);
+    let (sender, receiver) = crossbeam_channel::unbounded();
     let control = Arc::new(StreamingControl {
         sender,
         stop_requested: AtomicBool::new(false),
@@ -281,7 +277,7 @@ pub fn start(
 
 fn run_worker(
     engine: &mut engine::Engine,
-    receiver: &mpsc::Receiver<Vec<f32>>,
+    receiver: &Receiver<Vec<f32>>,
     control: &StreamingControl,
     jvm: &JavaVM,
     target: &GlobalRef,
@@ -309,14 +305,29 @@ fn run_worker(
         } else {
             match receiver.recv_timeout(Duration::from_millis(20)) {
                 Ok(samples) => Ok(samples),
-                Err(mpsc::RecvTimeoutError::Timeout) => continue,
-                Err(mpsc::RecvTimeoutError::Disconnected) => Err(TryRecvError::Disconnected),
+                Err(crossbeam_channel::RecvTimeoutError::Timeout) => continue,
+                Err(crossbeam_channel::RecvTimeoutError::Disconnected) => {
+                    Err(TryRecvError::Disconnected)
+                }
             }
         };
 
         match next {
-            Ok(samples) => {
+            Ok(mut samples) => {
                 control.consumed(samples.len());
+                // Coalesce additional ready chunks from the channel up to ~200ms
+                // (3200 samples) to dramatically reduce per-chunk mel spectrogram
+                // recomputation overhead in transcribe-cpp when processing a backlog.
+                while samples.len() < AUDIO_CHUNK_SAMPLES * 2 {
+                    match receiver.try_recv() {
+                        Ok(more) => {
+                            control.consumed(more.len());
+                            samples.extend_from_slice(&more);
+                        }
+                        Err(TryRecvError::Empty | TryRecvError::Disconnected) => break,
+                    }
+                }
+
                 if samples.is_empty() {
                     continue;
                 }
@@ -357,8 +368,10 @@ fn run_worker(
             Err(TryRecvError::Empty) if finalizing => {
                 if control.producer_done.load(Ordering::Acquire) {
                     if control.overflowed() {
-                        stream.reset();
-                        return Err("streaming audio buffer filled; try a shorter recording".into());
+                        log::warn!(
+                            "streaming audio buffer limit reached ({} samples); finalizing available audio",
+                            MAX_QUEUED_SAMPLES
+                        );
                     }
                     let finalize_started = Instant::now();
                     stream.finalize().map_err(|e| e.to_string())?;
@@ -398,8 +411,8 @@ fn run_worker(
 mod tests {
     use super::*;
 
-    fn control() -> (Arc<StreamingControl>, mpsc::Receiver<Vec<f32>>) {
-        let (sender, receiver) = mpsc::sync_channel(MAX_QUEUED_SAMPLES / AUDIO_CHUNK_SAMPLES);
+    fn control() -> (Arc<StreamingControl>, Receiver<Vec<f32>>) {
+        let (sender, receiver) = crossbeam_channel::unbounded();
         (
             Arc::new(StreamingControl {
                 sender,
@@ -433,7 +446,10 @@ mod tests {
     #[test]
     fn queue_overflow_is_reported_without_blocking() {
         let (control, _receiver) = control();
-        control.push(&vec![0.0; MAX_QUEUED_SAMPLES + 1]);
+        control
+            .queued_samples
+            .store(MAX_QUEUED_SAMPLES, Ordering::Release);
+        control.push(&[0.0]);
         assert!(control.overflowed());
         assert!(control.queued_samples.load(Ordering::Acquire) <= MAX_QUEUED_SAMPLES);
     }
@@ -474,5 +490,27 @@ mod tests {
         let (current, average) = stats.rates();
         assert!((current - 1.0).abs() < f32::EPSILON);
         assert!((average - 1.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn batch_coalesces_ready_chunks_up_to_limit() {
+        let (control, receiver) = control();
+        for _ in 0..10 {
+            control.push(&vec![0.1; 200]);
+        }
+        assert_eq!(control.queued_samples.load(Ordering::Acquire), 2000);
+        let mut batch = receiver.recv().unwrap();
+        control.consumed(batch.len());
+        while batch.len() < AUDIO_CHUNK_SAMPLES * 2 {
+            match receiver.try_recv() {
+                Ok(more) => {
+                    control.consumed(more.len());
+                    batch.extend_from_slice(&more);
+                }
+                Err(TryRecvError::Empty | TryRecvError::Disconnected) => break,
+            }
+        }
+        assert_eq!(batch.len(), 2000);
+        assert_eq!(control.queued_samples.load(Ordering::Acquire), 0);
     }
 }
