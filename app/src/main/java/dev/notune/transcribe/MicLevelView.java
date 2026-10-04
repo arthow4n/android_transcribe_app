@@ -1,11 +1,11 @@
 package dev.notune.transcribe;
 
-import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.RectF;
+import android.os.SystemClock;
 import android.util.AttributeSet;
 import android.view.View;
 
@@ -13,16 +13,55 @@ import com.google.android.material.color.MaterialColors;
 
 /**
  * Animated sound wave arcs radiating symmetrically on both left and right sides of the record icon.
- * Reacts dynamically to mic level (0..1).
+ * Spans dynamically across the available button width with a perceptually smoothed
+ * logarithmic envelope follower (fast attack, smooth natural decay).
  */
 public class MicLevelView extends View {
 
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private float current = 0f;   // 0..1
-    private float target = 0f;    // 0..1
+    private float currentLevel = 0f;   // 0..1 smoothed
+    private float targetLevel = 0f;    // 0..1 perceptual target
     private int baseColor = Color.WHITE;
-    private ValueAnimator animator;
     private final RectF oval = new RectF();
+
+    private boolean isAnimating = false;
+    private long lastFrameTime = 0L;
+
+    private final Runnable animTicker = new Runnable() {
+        @Override
+        public void run() {
+            if (getVisibility() != VISIBLE) {
+                isAnimating = false;
+                return;
+            }
+
+            long now = SystemClock.uptimeMillis();
+            float dt = (lastFrameTime > 0) ? (now - lastFrameTime) / 1000f : 0.016f;
+            lastFrameTime = now;
+            if (dt > 0.1f) dt = 0.1f; // clamp if dropped frames
+
+            float diff = targetLevel - currentLevel;
+            if (diff > 0) {
+                // Fast attack: reacts promptly to voice onset (~35ms time constant)
+                float alpha = 1.0f - (float) Math.exp(-dt / 0.035f);
+                currentLevel += diff * alpha;
+            } else {
+                // Smooth decay: bridges inter-syllable pauses naturally (~280ms time constant)
+                float alpha = 1.0f - (float) Math.exp(-dt / 0.280f);
+                currentLevel += diff * alpha;
+            }
+
+            invalidate();
+
+            if (targetLevel > 0.005f || currentLevel > 0.005f) {
+                postOnAnimation(this);
+            } else {
+                currentLevel = 0f;
+                isAnimating = false;
+                invalidate();
+            }
+        }
+    };
 
     public MicLevelView(Context c) { super(c); init(); }
     public MicLevelView(Context c, AttributeSet a) { super(c, a); init(); }
@@ -47,20 +86,66 @@ public class MicLevelView extends View {
         invalidate();
     }
 
-    /** level: 0..1 */
+    /**
+     * Map raw audio level (0..1) to logarithmic/perceptual scale.
+     * Accurately reflects how human hearing perceives loudness and distinguishes nuances.
+     */
+    private float mapToPerceptual(float raw) {
+        if (raw <= 0.002f) return 0f;
+        float logMin = (float) Math.log10(0.015);
+        float logMax = (float) Math.log10(1.015);
+        float logVal = (float) Math.log10(Math.min(1.0f, raw) + 0.015);
+        float norm = (logVal - logMin) / (logMax - logMin);
+        return Math.max(0f, Math.min(1f, norm));
+    }
+
+    /** Set new audio level from microphone input (0..1). */
     public void setLevel(float level) {
         if (level < 0f) level = 0f;
         if (level > 1f) level = 1f;
-        target = level;
 
-        if (animator != null) animator.cancel();
-        animator = ValueAnimator.ofFloat(current, target);
-        animator.setDuration(60); // fast, makes it feel "live"
-        animator.addUpdateListener(a -> {
-            current = (float) a.getAnimatedValue();
-            invalidate();
-        });
-        animator.start();
+        targetLevel = mapToPerceptual(level);
+
+        if (getVisibility() == VISIBLE) {
+            startAnimation();
+        }
+    }
+
+    private void startAnimation() {
+        if (!isAnimating) {
+            isAnimating = true;
+            lastFrameTime = SystemClock.uptimeMillis();
+            postOnAnimation(animTicker);
+        }
+    }
+
+    private void stopAnimation() {
+        isAnimating = false;
+        removeCallbacks(animTicker);
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        if (getVisibility() == VISIBLE && (targetLevel > 0 || currentLevel > 0)) {
+            startAnimation();
+        }
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+        stopAnimation();
+    }
+
+    @Override
+    protected void onVisibilityChanged(View changedView, int visibility) {
+        super.onVisibilityChanged(changedView, visibility);
+        if (visibility != VISIBLE) {
+            stopAnimation();
+            currentLevel = 0f;
+            targetLevel = 0f;
+        }
     }
 
     @Override
@@ -73,36 +158,44 @@ public class MicLevelView extends View {
 
         float cx = getWidth() / 2f;
         float cy = getHeight() / 2f;
+        if (cx <= 0 || cy <= 0) return;
 
         paint.setColor(baseColor);
         paint.setStyle(Paint.Style.STROKE);
         paint.setStrokeCap(Paint.Cap.ROUND);
-        paint.setStrokeWidth(dp(2.2f));
+        paint.setStrokeWidth(dp(2.0f));
 
-        float density = getResources().getDisplayMetrics().density;
-        float r1 = 16f * density;
-        float r2 = 22f * density;
-        float r3 = 28f * density;
+        // Dynamically compute the number of concentric arcs that fit in the button width
+        float maxRadius = Math.max(dp(24f), cx - dp(8f));
+        float baseR = dp(16f); // Starts right outside the 24dp mic icon
+        float arcSpacing = dp(8.5f);
+        int numArcs = Math.max(3, Math.min(8, (int) ((maxRadius - baseR) / arcSpacing) + 1));
 
-        // Arc 1 (inner): always visible while recording, brightens with volume
-        int alpha1 = Math.min(255, 70 + (int)(185 * Math.min(1f, current * 2.5f)));
-        paint.setAlpha(alpha1);
-        drawSymmetricArcs(canvas, cx, cy, r1, 40f);
+        // Reach indicator based on smooth envelope
+        float reach = currentLevel * (numArcs - 0.2f);
 
-        // Arc 2 (middle): lights up at low-medium volume
-        if (current > 0.12f) {
-            float f2 = Math.min(1f, (current - 0.12f) / 0.45f);
-            int alpha2 = (int)(255 * f2);
-            paint.setAlpha(alpha2);
-            drawSymmetricArcs(canvas, cx, cy, r2, 35f);
-        }
+        for (int i = 0; i < numArcs; i++) {
+            float r = baseR + i * arcSpacing;
+            if (r > maxRadius) break;
 
-        // Arc 3 (outer): lights up at higher volume
-        if (current > 0.40f) {
-            float f3 = Math.min(1f, (current - 0.40f) / 0.55f);
-            int alpha3 = (int)(255 * f3);
-            paint.setAlpha(alpha3);
-            drawSymmetricArcs(canvas, cx, cy, r3, 30f);
+            float weight;
+            if (i == 0) {
+                // Innermost arc: always softly visible while recording, brightens with speech
+                weight = Math.max(0.30f, currentLevel);
+            } else {
+                weight = reach - i;
+                if (weight <= 0f) continue;
+                if (weight > 1f) weight = 1f;
+            }
+
+            // Alpha falls off gently for outer arcs for a soft, natural acoustic dissipation
+            int alpha = (int) (240 * weight * (1f - i * 0.06f));
+            alpha = Math.max(0, Math.min(255, alpha));
+            paint.setAlpha(alpha);
+
+            // Sweep angle smoothly widens with volume
+            float sweep = (22f + 18f * weight) * (1f - i * 0.035f);
+            drawSymmetricArcs(canvas, cx, cy, r, sweep);
         }
     }
 
