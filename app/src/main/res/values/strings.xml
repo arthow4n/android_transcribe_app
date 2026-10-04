@@ -14,7 +14,8 @@
     <string name="ime_model_selector">Select speech model</string>
     <string name="ime_select_all">Select all text</string>
     <string name="ime_stats_format">Elapsed %1$s · %2$d words · Now %3$s · Avg %4$s</string>
-    <string name="ime_last_wpm_format">Last paste: %1$d WPM (%2$d words in %3$.1fs)</string>
+    <string name="ime_last_wpm_format">Last paste: %1$d / %2$d WPM (%3$d words in %4$s / %5$s)</string>
+    <string name="ime_last_wpm_format_single">Last paste: %1$d WPM (%2$d words in %3$s)</string>
     
     <string name="section_subs">Live Subtitles</string>
     <string name="desc_subs">Display subtitles for any audio playing on your device. After starting, select \'Share entire screen\' for best results.</string>

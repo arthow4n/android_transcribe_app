@@ -41,17 +41,27 @@ public final class DictationStatsManager {
         public final int words;
         public final int chars;
         public final long durationMs;
+        public final long totalDurationMs;
         public final float wpm;
+        public final float totalWpm;
         public final String language;
         public final String model;
 
         public SessionRecord(long timestamp, int words, int chars, long durationMs,
                              float wpm, String language, String model) {
+            this(timestamp, words, chars, durationMs, durationMs, wpm, wpm, language, model);
+        }
+
+        public SessionRecord(long timestamp, int words, int chars, long durationMs,
+                             long totalDurationMs, float wpm, float totalWpm,
+                             String language, String model) {
             this.timestamp = timestamp;
             this.words = words;
             this.chars = chars;
             this.durationMs = durationMs;
+            this.totalDurationMs = totalDurationMs;
             this.wpm = wpm;
+            this.totalWpm = totalWpm;
             this.language = language == null || language.isEmpty() ? "Auto" : language;
             this.model = model == null || model.isEmpty() ? "Built-in (Parakeet TDT 0.6B v3)" : model;
         }
@@ -62,7 +72,9 @@ public final class DictationStatsManager {
             obj.put("words", words);
             obj.put("chars", chars);
             obj.put("durationMs", durationMs);
+            obj.put("totalDurationMs", totalDurationMs);
             obj.put("wpm", (double) wpm);
+            obj.put("totalWpm", (double) totalWpm);
             obj.put("language", language);
             obj.put("model", model);
             return obj;
@@ -73,10 +85,13 @@ public final class DictationStatsManager {
             int w = obj.optInt("words", 0);
             int c = obj.optInt("chars", 0);
             long d = obj.optLong("durationMs", 0L);
+            long td = obj.optLong("totalDurationMs", d);
             float wpm = (float) obj.optDouble("wpm", 0.0);
+            float defaultTotalWpm = td > 0 ? (w * 60000.0f) / td : wpm;
+            float totalWpm = (float) obj.optDouble("totalWpm", defaultTotalWpm);
             String lang = obj.optString("language", "Auto");
             String mod = obj.optString("model", "Built-in (Parakeet TDT 0.6B v3)");
-            return new SessionRecord(ts, w, c, d, wpm, lang, mod);
+            return new SessionRecord(ts, w, c, d, td, wpm, totalWpm, lang, mod);
         }
     }
 
@@ -129,6 +144,18 @@ public final class DictationStatsManager {
     public static synchronized SessionRecord recordPaste(Context context, String text,
                                                          long durationMs, String rawLanguage,
                                                          String rawModel) {
+        return recordPaste(context, text, durationMs, durationMs, rawLanguage, rawModel);
+    }
+
+    /**
+     * Records a new dictation paste event with total elapsed duration including
+     * processing time. Returns the created session record, or null if the text
+     * contained no valid words.
+     */
+    public static synchronized SessionRecord recordPaste(Context context, String text,
+                                                         long durationMs, long totalDurationMs,
+                                                         String rawLanguage,
+                                                         String rawModel) {
         if (text == null || text.trim().isEmpty()) {
             return null;
         }
@@ -138,12 +165,14 @@ public final class DictationStatsManager {
         }
         int chars = text.length();
         long dur = Math.max(300L, durationMs);
+        long totalDur = Math.max(dur, totalDurationMs);
         float wpm = (words * 60000.0f) / dur;
+        float totalWpm = (words * 60000.0f) / totalDur;
         String lang = normalizeLanguage(rawLanguage);
         String model = normalizeModelName(rawModel);
 
         SessionRecord record = new SessionRecord(
-                System.currentTimeMillis(), words, chars, dur, wpm, lang, model);
+                System.currentTimeMillis(), words, chars, dur, totalDur, wpm, totalWpm, lang, model);
 
         List<SessionRecord> list = loadRecords(context);
         list.add(record);

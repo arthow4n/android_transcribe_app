@@ -534,10 +534,7 @@ public class RustInputMethodService extends InputMethodService {
             boolean isProcessing = isProcessingStatus();
             if (isProcessing) {
                 if (statusView != null) statusView.setText("Processing...");
-                if (hintView != null) {
-                    hintView.setText("Finishing dictation...");
-                    hintView.setVisibility(View.VISIBLE);
-                }
+                if (hintView != null) hintView.setVisibility(View.GONE);
                 if (progressBar != null) progressBar.setVisibility(View.VISIBLE);
                 if (micIcon != null) micIcon.setVisibility(View.GONE);
             } else {
@@ -704,6 +701,10 @@ public class RustInputMethodService extends InputMethodService {
             if (status != null && (status.startsWith("Error")
                     || "Canceled".equals(status) || "Ready".equals(status))) {
                 mainHandler.removeCallbacks(statsTicker);
+                if (!isRecording) {
+                    recordingStartedAtMs = 0L;
+                    lastRecordingDurationMs = 0L;
+                }
             }
             updateUiState();
             if (pendingSwitchBack && status != null && status.startsWith("Error")) {
@@ -753,9 +754,6 @@ public class RustInputMethodService extends InputMethodService {
             if (noModelInstalled || noModelSelected) {
                 hintView.setText(getString(R.string.models_open_settings_hint));
                 hintView.setVisibility(View.VISIBLE);
-            } else if (isBusy) {
-                hintView.setText("Finishing dictation...");
-                hintView.setVisibility(View.VISIBLE);
             } else {
                 hintView.setVisibility(View.GONE);
             }
@@ -795,6 +793,8 @@ public class RustInputMethodService extends InputMethodService {
             if (text == null || text.trim().isEmpty()) {
                 // Nothing recognized — don't insert a stray space.
                 updateRecordButtonUI(false);
+                lastRecordingDurationMs = 0L;
+                recordingStartedAtMs = 0L;
                 if (statusView != null) statusView.setText("Tap to speak");
                 if (hintView != null) hintView.setVisibility(View.GONE);
                 hideStatsIfIdle();
@@ -824,11 +824,16 @@ public class RustInputMethodService extends InputMethodService {
                 audioPauser.abandon(this);
                 pauseAudioActive = false;
             }
+            long nowMs = android.os.SystemClock.elapsedRealtime();
             long dur = lastRecordingDurationMs > 0 ? lastRecordingDurationMs
                     : (recordingStartedAtMs > 0
-                    ? Math.max(0L, android.os.SystemClock.elapsedRealtime() - recordingStartedAtMs)
+                    ? Math.max(0L, nowMs - recordingStartedAtMs)
                     : 0L);
+            long totalDur = recordingStartedAtMs > 0
+                    ? Math.max(dur, nowMs - recordingStartedAtMs)
+                    : dur;
             lastRecordingDurationMs = 0L;
+            recordingStartedAtMs = 0L;
             String currentLang = readConfig("model_language");
             String currentModel = readConfig("active_model");
             TranscriptionHistoryManager.finalizeEntry(
@@ -841,7 +846,7 @@ public class RustInputMethodService extends InputMethodService {
                 loadHistoryItems();
             }
             DictationStatsManager.SessionRecord session = DictationStatsManager.recordPaste(
-                    RustInputMethodService.this, text, dur, currentLang, currentModel);
+                    RustInputMethodService.this, text, dur, totalDur, currentLang, currentModel);
             if (session != null) {
                 displayLastWpm(session);
             }
@@ -1234,6 +1239,9 @@ public class RustInputMethodService extends InputMethodService {
 
     private static String formatElapsed(long elapsedMs) {
         long totalSeconds = elapsedMs / 1000L;
+        if (totalSeconds == 0L && elapsedMs > 0L) {
+            totalSeconds = 1L;
+        }
         long hours = totalSeconds / 3600L;
         long minutes = (totalSeconds % 3600L) / 60L;
         long seconds = totalSeconds % 60L;
@@ -1281,9 +1289,18 @@ public class RustInputMethodService extends InputMethodService {
 
     private void displayLastWpm(DictationStatsManager.SessionRecord session) {
         if (lastWpmView == null || session == null) return;
-        int wpm = Math.round(session.wpm);
-        float seconds = session.durationMs / 1000.0f;
-        lastWpmView.setText(getString(R.string.ime_last_wpm_format, wpm, session.words, seconds));
+        int speechWpm = Math.round(session.wpm);
+        int totalWpm = Math.round(session.totalWpm);
+        String speechTime = formatElapsed(session.durationMs);
+        String totalTime = formatElapsed(session.totalDurationMs);
+
+        if (session.totalDurationMs > session.durationMs && (totalWpm != speechWpm || !speechTime.equals(totalTime))) {
+            lastWpmView.setText(getString(R.string.ime_last_wpm_format,
+                    speechWpm, totalWpm, session.words, speechTime, totalTime));
+        } else {
+            lastWpmView.setText(getString(R.string.ime_last_wpm_format_single,
+                    speechWpm, session.words, speechTime));
+        }
         lastWpmView.setVisibility(View.VISIBLE);
     }
 
