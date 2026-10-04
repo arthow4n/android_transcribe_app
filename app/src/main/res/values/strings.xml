@@ -206,9 +206,11 @@
     <!-- Keyboard Toolbar Clipboard Actions -->
     <string name="ime_paste_button">Paste from clipboard</string>
     <string name="ime_copy_button">Copy selected text</string>
+    <string name="ime_clear_clipboard_button">Clear clipboard</string>
     <string name="ime_cut_button">Cut selected text</string>
     <string name="ime_paste_empty">Clipboard is empty</string>
     <string name="ime_paste_preview">Clipboard: %1$s</string>
     <string name="ime_no_selection">No text selected</string>
+    <string name="ime_clipboard_cleared">Clipboard cleared</string>
 </resources>
 

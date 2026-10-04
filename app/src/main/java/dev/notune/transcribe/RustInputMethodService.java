@@ -66,6 +66,7 @@ public class RustInputMethodService extends InputMethodService {
     private MaterialButtonToggleGroup languageGroup;
     private android.widget.ImageView pasteButton;
     private android.widget.ImageView copyButton;
+    private android.widget.ImageView clearClipboardButton;
     private android.widget.ImageView cutButton;
     private android.widget.ImageView privacyToggleButton;
     private android.widget.ImageView historyButton;
@@ -190,6 +191,7 @@ public class RustInputMethodService extends InputMethodService {
 
             pasteButton = view.findViewById(R.id.ime_paste_button);
             copyButton = view.findViewById(R.id.ime_copy_button);
+            clearClipboardButton = view.findViewById(R.id.ime_clear_clipboard_button);
             cutButton = view.findViewById(R.id.ime_cut_button);
             privacyToggleButton = view.findViewById(R.id.ime_privacy_toggle);
             historyButton = view.findViewById(R.id.ime_history_button);
@@ -209,6 +211,10 @@ public class RustInputMethodService extends InputMethodService {
 
             if (copyButton != null) {
                 copyButton.setOnClickListener(v -> copySelectedText());
+            }
+
+            if (clearClipboardButton != null) {
+                clearClipboardButton.setOnClickListener(v -> clearClipboard());
             }
 
             if (cutButton != null) {
@@ -1234,6 +1240,28 @@ public class RustInputMethodService extends InputMethodService {
                         android.widget.Toast.LENGTH_SHORT).show();
             }
         }
+    }
+
+    private void clearClipboard() {
+        if (clearClipboardButton != null) {
+            clearClipboardButton.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP);
+        }
+        ClipboardManager clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+        if (clipboard == null) return;
+
+        if (!clipboard.hasPrimaryClip()) {
+            android.widget.Toast.makeText(this, R.string.ime_paste_empty,
+                    android.widget.Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+            clipboard.clearPrimaryClip();
+        } else {
+            clipboard.setPrimaryClip(ClipData.newPlainText("", ""));
+        }
+        android.widget.Toast.makeText(this, R.string.ime_clipboard_cleared,
+                android.widget.Toast.LENGTH_SHORT).show();
     }
 
     private void cutSelectedText() {
