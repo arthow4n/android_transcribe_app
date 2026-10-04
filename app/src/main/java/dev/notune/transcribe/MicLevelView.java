@@ -163,16 +163,21 @@ public class MicLevelView extends View {
         paint.setColor(baseColor);
         paint.setStyle(Paint.Style.STROKE);
         paint.setStrokeCap(Paint.Cap.ROUND);
-        paint.setStrokeWidth(dp(2.0f));
+        paint.setStrokeWidth(dp(1.8f));
 
-        // Dynamically compute the number of concentric arcs that fit in the button width
-        float maxRadius = Math.max(dp(24f), cx - dp(8f));
-        float baseR = dp(16f); // Starts right outside the 24dp mic icon
+        // Breathing room margins:
+        // baseR leaves clean space around the 24dp mic icon (radius 12dp)
+        float baseR = dp(18f);
+        // maxRadius ensures arcs never bleed into the rounded pill borders, keeping at least 20dp margin
+        float maxRadius = Math.max(dp(26f), Math.min(dp(44f), cx - dp(20f)));
         float arcSpacing = dp(8.5f);
-        int numArcs = Math.max(3, Math.min(8, (int) ((maxRadius - baseR) / arcSpacing) + 1));
+        int numArcs = Math.max(3, Math.min(4, (int) ((maxRadius - baseR) / arcSpacing) + 1));
 
         // Reach indicator based on smooth envelope
         float reach = currentLevel * (numArcs - 0.2f);
+
+        // Vertical breathing margin: keep arc tips comfortably within the 44dp height
+        float maxVerticalHalf = Math.max(dp(8f), cy - dp(7f));
 
         for (int i = 0; i < numArcs; i++) {
             float r = baseR + i * arcSpacing;
@@ -180,21 +185,24 @@ public class MicLevelView extends View {
 
             float weight;
             if (i == 0) {
-                // Innermost arc: always softly visible while recording, brightens with speech
-                weight = Math.max(0.30f, currentLevel);
+                // Innermost arc: softly visible while recording, brightens with speech
+                weight = Math.max(0.25f, currentLevel);
             } else {
                 weight = reach - i;
                 if (weight <= 0f) continue;
                 if (weight > 1f) weight = 1f;
             }
 
-            // Alpha falls off gently for outer arcs for a soft, natural acoustic dissipation
-            int alpha = (int) (240 * weight * (1f - i * 0.06f));
+            // Alpha falls off gracefully for outer arcs for an airy acoustic dissipation
+            int alpha = (int) (225 * weight * (1f - i * 0.12f));
             alpha = Math.max(0, Math.min(255, alpha));
             paint.setAlpha(alpha);
 
-            // Sweep angle smoothly widens with volume
-            float sweep = (22f + 18f * weight) * (1f - i * 0.035f);
+            // Sweep angle: keep arc tips within vertical bounds so they never clip or look crowded
+            float maxSweepAllowed = (float) Math.toDegrees(Math.asin(Math.min(0.80f, maxVerticalHalf / r)));
+            float targetSweep = (14f + 12f * weight) * (1f - i * 0.08f);
+            float sweep = Math.min(targetSweep, maxSweepAllowed);
+
             drawSymmetricArcs(canvas, cx, cy, r, sweep);
         }
     }
