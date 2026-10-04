@@ -5,15 +5,15 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.RectF;
 import android.util.AttributeSet;
 import android.view.View;
 
 import com.google.android.material.color.MaterialColors;
 
 /**
- * Pulsing glow that reacts to the mic level (0..1). The glow color follows the
- * Material 3 theme (colorPrimary), so it matches the app, the keyboard, and the
- * recognizer popup in both light and dark mode.
+ * Animated sound wave arcs radiating symmetrically on both left and right sides of the record icon.
+ * Reacts dynamically to mic level (0..1).
  */
 public class MicLevelView extends View {
 
@@ -22,14 +22,15 @@ public class MicLevelView extends View {
     private float target = 0f;    // 0..1
     private int baseColor = Color.WHITE;
     private ValueAnimator animator;
+    private final RectF oval = new RectF();
 
     public MicLevelView(Context c) { super(c); init(); }
     public MicLevelView(Context c, AttributeSet a) { super(c, a); init(); }
     public MicLevelView(Context c, AttributeSet a, int s) { super(c, a, s); init(); }
 
     private void init() {
-        paint.setStyle(Paint.Style.FILL);
-        // Resolve the theme's primary color from the (Material-themed) context.
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeCap(Paint.Cap.ROUND);
         baseColor = MaterialColors.getColor(this,
                 com.google.android.material.R.attr.colorPrimary, Color.WHITE);
         paint.setColor(baseColor);
@@ -39,7 +40,7 @@ public class MicLevelView extends View {
         return v * getResources().getDisplayMetrics().density;
     }
 
-    /** Override the glow color (defaults to the theme's colorPrimary). */
+    /** Override the wave color (defaults to the theme's colorPrimary or colorOnPrimary). */
     public void setColor(int color) {
         baseColor = color;
         paint.setColor(color);
@@ -66,28 +67,50 @@ public class MicLevelView extends View {
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
 
-        if (current <= 0.001f) {
+        if (getVisibility() != VISIBLE) {
             return;
         }
 
         float cx = getWidth() / 2f;
         float cy = getHeight() / 2f;
-        float min = Math.min(getWidth(), getHeight()) / 2f;
 
-        // Radius: base size + level
-        float base = min * 0.42f;
-        float extra = min * 0.28f * current;
-        float r = base + extra;
-
-        // Inner brighter ring
-        int alphaInner = (int) (45 + 90 * current);  // 45..135
         paint.setColor(baseColor);
-        paint.setAlpha(alphaInner);
-        canvas.drawCircle(cx, cy, r, paint);
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeCap(Paint.Cap.ROUND);
+        paint.setStrokeWidth(dp(2.2f));
 
-        // Outer soft glow (larger, more transparent)
-        int alphaOuter = (int) (16 + 40 * current);  // 16..56
-        paint.setAlpha(alphaOuter);
-        canvas.drawCircle(cx, cy, r * 1.25f, paint);
+        float density = getResources().getDisplayMetrics().density;
+        float r1 = 16f * density;
+        float r2 = 22f * density;
+        float r3 = 28f * density;
+
+        // Arc 1 (inner): always visible while recording, brightens with volume
+        int alpha1 = Math.min(255, 70 + (int)(185 * Math.min(1f, current * 2.5f)));
+        paint.setAlpha(alpha1);
+        drawSymmetricArcs(canvas, cx, cy, r1, 40f);
+
+        // Arc 2 (middle): lights up at low-medium volume
+        if (current > 0.12f) {
+            float f2 = Math.min(1f, (current - 0.12f) / 0.45f);
+            int alpha2 = (int)(255 * f2);
+            paint.setAlpha(alpha2);
+            drawSymmetricArcs(canvas, cx, cy, r2, 35f);
+        }
+
+        // Arc 3 (outer): lights up at higher volume
+        if (current > 0.40f) {
+            float f3 = Math.min(1f, (current - 0.40f) / 0.55f);
+            int alpha3 = (int)(255 * f3);
+            paint.setAlpha(alpha3);
+            drawSymmetricArcs(canvas, cx, cy, r3, 30f);
+        }
+    }
+
+    private void drawSymmetricArcs(Canvas canvas, float cx, float cy, float r, float sweep) {
+        oval.set(cx - r, cy - r, cx + r, cy + r);
+        // Left arc
+        canvas.drawArc(oval, 180f - sweep, sweep * 2f, false, paint);
+        // Right arc
+        canvas.drawArc(oval, -sweep, sweep * 2f, false, paint);
     }
 }

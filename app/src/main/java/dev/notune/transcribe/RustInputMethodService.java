@@ -61,7 +61,7 @@ public class RustInputMethodService extends InputMethodService {
     private View enterButton;
     private TextView languageSwitchButton;
     private View modelButton;
-    private View actionRow;
+    private LinearLayout actionRow;
     private View deleteWordButton;
     private View qwertyContainer;
     private android.widget.ImageView expandToggleButton;
@@ -643,8 +643,8 @@ public class RustInputMethodService extends InputMethodService {
             circleAttr = com.google.android.material.R.attr.colorSecondaryContainer;
             iconAttr = com.google.android.material.R.attr.colorOnSecondaryContainer;
         } else {
-            circleAttr = com.google.android.material.R.attr.colorSurfaceContainerHighest;
-            iconAttr = com.google.android.material.R.attr.colorOnSurface;
+            circleAttr = com.google.android.material.R.attr.colorPrimaryContainer;
+            iconAttr = com.google.android.material.R.attr.colorOnPrimaryContainer;
         }
         if (recordCircle != null) {
             recordCircle.setBackgroundTintList(ColorStateList.valueOf(
@@ -1061,6 +1061,8 @@ public class RustInputMethodService extends InputMethodService {
         }
         if (show) {
             loadHistoryItems();
+        } else {
+            updateActionRowLayout(isQwertyExpanded());
         }
     }
 
@@ -1542,7 +1544,7 @@ public class RustInputMethodService extends InputMethodService {
             R.id.ime_key_backtick, R.id.ime_key_quote_single, R.id.ime_key_quote_double,
             R.id.ime_key_brace_open, R.id.ime_key_brace_close, R.id.ime_key_bracket_open,
             R.id.ime_key_bracket_close, R.id.ime_key_underscore, R.id.ime_key_minus,
-            R.id.ime_key_equal, R.id.ime_key_backslash,
+            R.id.ime_key_equal, R.id.ime_key_question,
             R.id.ime_key_exclamation, R.id.ime_key_at, R.id.ime_key_hash, R.id.ime_key_dollar,
             R.id.ime_key_percent, R.id.ime_key_caret, R.id.ime_key_ampersand, R.id.ime_key_asterisk,
             R.id.ime_key_paren_open, R.id.ime_key_paren_close, R.id.ime_key_slash,
@@ -1668,6 +1670,61 @@ public class RustInputMethodService extends InputMethodService {
                     ? R.string.ime_collapse_keys
                     : R.string.ime_expand_keys));
         }
+        updateActionRowLayout(expanded);
+    }
+
+    private void updateActionRowLayout(boolean expanded) {
+        if (actionRow == null || recordContainer == null || spaceButton == null
+                || backspaceButton == null || deleteWordButton == null || enterButton == null) {
+            return;
+        }
+        int h44 = dp(44);
+        int margin6 = dp(6);
+
+        actionRow.removeAllViews();
+        if (expanded) {
+            // Expanded (QWERTY mode): Push-to-speak (132dp) on the left, Space (flex) in center
+            LinearLayout.LayoutParams recordLp = new LinearLayout.LayoutParams(dp(132), h44, 0.0f);
+            recordLp.setMarginEnd(margin6);
+            recordContainer.setLayoutParams(recordLp);
+
+            LinearLayout.LayoutParams spaceLp = new LinearLayout.LayoutParams(0, h44, 1.0f);
+            spaceLp.setMarginEnd(margin6);
+            spaceButton.setLayoutParams(spaceLp);
+
+            actionRow.addView(recordContainer);
+            actionRow.addView(spaceButton);
+        } else {
+            // Collapsed (Voice mode): Space (44dp) on the left, Mic (flex) in center
+            LinearLayout.LayoutParams spaceLp = new LinearLayout.LayoutParams(h44, h44, 0.0f);
+            spaceLp.setMarginEnd(margin6);
+            spaceButton.setLayoutParams(spaceLp);
+
+            LinearLayout.LayoutParams recordLp = new LinearLayout.LayoutParams(0, h44, 1.0f);
+            recordLp.setMarginEnd(margin6);
+            recordContainer.setLayoutParams(recordLp);
+
+            actionRow.addView(spaceButton);
+            actionRow.addView(recordContainer);
+        }
+
+        LinearLayout.LayoutParams backspaceLp = new LinearLayout.LayoutParams(h44, h44, 0.0f);
+        backspaceLp.setMarginEnd(margin6);
+        backspaceButton.setLayoutParams(backspaceLp);
+        actionRow.addView(backspaceButton);
+
+        LinearLayout.LayoutParams deleteWordLp = new LinearLayout.LayoutParams(h44, h44, 0.0f);
+        deleteWordLp.setMarginEnd(margin6);
+        deleteWordButton.setLayoutParams(deleteWordLp);
+        actionRow.addView(deleteWordButton);
+
+        LinearLayout.LayoutParams enterLp = new LinearLayout.LayoutParams(h44, h44, 0.0f);
+        enterButton.setLayoutParams(enterLp);
+        actionRow.addView(enterButton);
+    }
+
+    private int dp(float dpVal) {
+        return Math.round(dpVal * getResources().getDisplayMetrics().density);
     }
 
     private void deletePreviousWord() {

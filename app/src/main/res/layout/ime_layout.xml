@@ -322,7 +322,7 @@
             <TextView android:id="@+id/ime_key_underscore" style="@style/ImeQwertyKey" android:text="_" />
             <TextView android:id="@+id/ime_key_minus" style="@style/ImeQwertyKey" android:text="-" />
             <TextView android:id="@+id/ime_key_equal" style="@style/ImeQwertyKey" android:text="=" />
-            <TextView android:id="@+id/ime_key_backslash" style="@style/ImeQwertyKey" android:text="&#x5C;" />
+            <TextView android:id="@+id/ime_key_question" style="@style/ImeQwertyKey" android:text="?" />
         </LinearLayout>
 
         <!-- Row 2: US Symbols (11 keys) -->
@@ -472,14 +472,14 @@
 
             <!-- Centered icon (mic / waveform / spinner) without text -->
             <FrameLayout
-                android:layout_width="32dp"
-                android:layout_height="32dp"
+                android:layout_width="72dp"
+                android:layout_height="36dp"
                 android:layout_gravity="center">
 
                 <dev.notune.transcribe.MicLevelView
                     android:id="@+id/ime_mic_level"
-                    android:layout_width="32dp"
-                    android:layout_height="32dp"
+                    android:layout_width="72dp"
+                    android:layout_height="36dp"
                     android:layout_gravity="center"/>
 
                 <ImageView
