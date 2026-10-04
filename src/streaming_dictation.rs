@@ -158,12 +158,52 @@ fn notify_stats(
     }
 }
 
-/// Count ordinary whitespace-delimited words in the current hypothesis. This
-/// intentionally remains a display metric: the streaming model may revise a
-/// tentative suffix, so it is not a promise that exactly this many words will
-/// be inserted when the recording is finalized.
+fn is_cjk(c: char) -> bool {
+    matches!(c,
+        '\u{4E00}'..='\u{9FFF}' |   // CJK Unified Ideographs
+        '\u{3400}'..='\u{4DBF}' |   // CJK Unified Ideographs Extension A
+        '\u{20000}'..='\u{2A6DF}' | // CJK Extension B
+        '\u{2A700}'..='\u{2B73F}' | // CJK Extension C
+        '\u{2B740}'..='\u{2B81F}' | // CJK Extension D
+        '\u{2B820}'..='\u{2CEAF}' | // CJK Extension E
+        '\u{F900}'..='\u{FAFF}' |   // CJK Compatibility Ideographs
+        '\u{3040}'..='\u{309F}' |   // Hiragana
+        '\u{30A0}'..='\u{30FF}' |   // Katakana
+        '\u{AC00}'..='\u{D7AF}' |   // Hangul Syllables
+        '\u{1100}'..='\u{11FF}'     // Hangul Jamo
+    )
+}
+
+/// Count ordinary words in the current hypothesis, excluding pure punctuation and
+/// counting CJK characters as individual word units. This intentionally remains a display
+/// metric: the streaming model may revise a tentative suffix, so it is not a promise
+/// that exactly this many words will be inserted when the recording is finalized.
 fn count_words(text: &str) -> usize {
-    text.split_whitespace().count()
+    let mut count = 0;
+    let mut in_word = false;
+    let mut chars = text.chars().peekable();
+
+    while let Some(c) = chars.next() {
+        if is_cjk(c) {
+            count += 1;
+            in_word = false;
+        } else if c.is_alphanumeric() {
+            if !in_word {
+                count += 1;
+                in_word = true;
+            }
+        } else if in_word && (c == '\'' || c == '’' || c == '-' || c == '–' || c == '.') {
+            if let Some(&next) = chars.peek() {
+                if next.is_alphanumeric() {
+                    continue;
+                }
+            }
+            in_word = false;
+        } else {
+            in_word = false;
+        }
+    }
+    count
 }
 
 /// Measures decoder throughput independently of microphone and queue timing.

@@ -11,6 +11,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.text.BreakIterator;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -273,33 +274,32 @@ public final class DictationStatsManager {
     }
 
     /**
-     * Splits text into words. Supports space-separated languages and CJK scripts
-     * (Chinese/Japanese/Korean) where characters function as individual words/morphemes.
+     * Splits text into words, filtering out standalone punctuation and non-word symbols.
+     * Supports space-separated languages and CJK scripts (Chinese/Japanese/Korean)
+     * where characters function as individual words/morphemes.
      */
     public static int countWords(String text) {
         if (text == null) return 0;
         String trimmed = text.trim();
         if (trimmed.isEmpty()) return 0;
 
+        BreakIterator bi = BreakIterator.getWordInstance(Locale.ROOT);
+        bi.setText(trimmed);
         int count = 0;
-        boolean inWord = false;
-        final int len = trimmed.length();
-        for (int i = 0; i < len; ) {
-            int cp = trimmed.codePointAt(i);
-            int charCount = Character.charCount(cp);
-
-            if (isCjk(cp)) {
-                count++;
-                inWord = false;
-            } else if (Character.isWhitespace(cp)) {
-                inWord = false;
-            } else {
-                if (!inWord) {
-                    count++;
-                    inWord = true;
+        int start = bi.first();
+        for (int end = bi.next(); end != BreakIterator.DONE; start = end, end = bi.next()) {
+            int cjkCount = 0;
+            boolean hasNonCjkWordChar = false;
+            for (int i = start; i < end; ) {
+                int cp = trimmed.codePointAt(i);
+                if (isCjk(cp)) {
+                    cjkCount++;
+                } else if (Character.isLetterOrDigit(cp)) {
+                    hasNonCjkWordChar = true;
                 }
+                i += Character.charCount(cp);
             }
-            i += charCount;
+            count += cjkCount + (hasNonCjkWordChar ? 1 : 0);
         }
         return count;
     }
