@@ -1106,11 +1106,36 @@ public class RustInputMethodService extends InputMethodService {
     private void setupModelSpinner() {
         modelAdapter = new ArrayAdapter<String>(modelSpinner.getContext(),
                 R.layout.ime_model_spinner_item,
+                R.id.ime_model_item_text,
                 new ArrayList<>()) {
             @Override
             public View getView(int position, View convertView, ViewGroup parent) {
                 View v = super.getView(position, convertView, parent);
                 v.setVisibility(View.GONE);
+                return v;
+            }
+
+            @Override
+            public View getDropDownView(int position, View convertView, ViewGroup parent) {
+                View v = super.getDropDownView(position, convertView, parent);
+                TextView textView = v.findViewById(R.id.ime_model_item_text);
+                android.widget.ImageView checkView = v.findViewById(R.id.ime_model_item_check);
+                boolean isSelected = (position == modelSpinner.getSelectedItemPosition());
+
+                if (checkView != null) {
+                    checkView.setVisibility(isSelected ? View.VISIBLE : View.GONE);
+                }
+                if (textView != null) {
+                    if (isSelected) {
+                        textView.setTextColor(MaterialColors.getColor(textView,
+                                com.google.android.material.R.attr.colorPrimary));
+                        textView.setTypeface(null, android.graphics.Typeface.BOLD);
+                    } else {
+                        textView.setTextColor(MaterialColors.getColor(textView,
+                                com.google.android.material.R.attr.colorOnSurface));
+                        textView.setTypeface(null, android.graphics.Typeface.NORMAL);
+                    }
+                }
                 return v;
             }
         };
