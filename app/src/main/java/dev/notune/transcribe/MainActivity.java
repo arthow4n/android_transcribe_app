@@ -370,12 +370,26 @@ public class MainActivity extends AppCompatActivity {
         layoutWpmContent.setVisibility(View.VISIBLE);
 
         if (textWpmAvg != null) {
-            textWpmAvg.setText(String.valueOf(Math.round(summary.averageWpm)));
+            int avgWpm = Math.round(summary.averageWpm);
+            int avgTotalWpm = Math.round(summary.averageTotalWpm);
+            if (summary.totalWithProcessingDurationMs > summary.totalDurationMs && avgWpm != avgTotalWpm) {
+                textWpmAvg.setText(avgWpm + " / " + avgTotalWpm);
+            } else {
+                textWpmAvg.setText(String.valueOf(avgWpm));
+            }
         }
         if (textWpmLast != null) {
-            textWpmLast.setText(summary.lastPaste != null
-                    ? String.valueOf(Math.round(summary.lastPaste.wpm))
-                    : "—");
+            if (summary.lastPaste != null) {
+                int lastWpm = Math.round(summary.lastPaste.wpm);
+                int lastTotalWpm = Math.round(summary.lastPaste.totalWpm);
+                if (summary.lastPaste.totalDurationMs > summary.lastPaste.durationMs && lastWpm != lastTotalWpm) {
+                    textWpmLast.setText(lastWpm + " / " + lastTotalWpm);
+                } else {
+                    textWpmLast.setText(String.valueOf(lastWpm));
+                }
+            } else {
+                textWpmLast.setText("—");
+            }
         }
         if (textWpmWords != null) {
             textWpmWords.setText(String.format(java.util.Locale.getDefault(), "%,d", summary.totalWords));
@@ -394,7 +408,13 @@ public class MainActivity extends AppCompatActivity {
                 name.setText(g.name);
                 String durStr = DictationStatsManager.formatDuration(g.totalDurationMs);
                 details.setText(getString(R.string.wpm_group_details, g.totalWords, g.count, durStr));
-                wpm.setText(getString(R.string.wpm_wpm_value, Math.round(g.getAverageWpm())));
+                int gWpm = Math.round(g.getAverageWpm());
+                int gTotalWpm = Math.round(g.getAverageTotalWpm());
+                if (g.totalWithProcessingDurationMs > g.totalDurationMs && gWpm != gTotalWpm) {
+                    wpm.setText(getString(R.string.wpm_dual_wpm_value, gWpm, gTotalWpm));
+                } else {
+                    wpm.setText(getString(R.string.wpm_wpm_value, gWpm));
+                }
                 containerWpmByLanguage.addView(row);
             }
         }
@@ -412,7 +432,13 @@ public class MainActivity extends AppCompatActivity {
                 name.setText(g.name);
                 String durStr = DictationStatsManager.formatDuration(g.totalDurationMs);
                 details.setText(getString(R.string.wpm_group_details, g.totalWords, g.count, durStr));
-                wpm.setText(getString(R.string.wpm_wpm_value, Math.round(g.getAverageWpm())));
+                int gWpm = Math.round(g.getAverageWpm());
+                int gTotalWpm = Math.round(g.getAverageTotalWpm());
+                if (g.totalWithProcessingDurationMs > g.totalDurationMs && gWpm != gTotalWpm) {
+                    wpm.setText(getString(R.string.wpm_dual_wpm_value, gWpm, gTotalWpm));
+                } else {
+                    wpm.setText(getString(R.string.wpm_wpm_value, gWpm));
+                }
                 containerWpmByModel.addView(row);
             }
         }
@@ -427,10 +453,16 @@ public class MainActivity extends AppCompatActivity {
         CharSequence[] items = new CharSequence[summary.recentSessions.size()];
         for (int i = 0; i < summary.recentSessions.size(); i++) {
             DictationStatsManager.SessionRecord rec = summary.recentSessions.get(i);
-            int wpm = Math.round(rec.wpm);
-            float secs = rec.durationMs / 1000.0f;
+            int speechWpm = Math.round(rec.wpm);
+            int totalWpm = Math.round(rec.totalWpm);
+            String speechTime = DictationStatsManager.formatElapsed(rec.durationMs);
+            String totalTime = DictationStatsManager.formatElapsed(rec.totalDurationMs);
             String timeStr = android.text.format.DateFormat.format("MMM d, HH:mm", rec.timestamp).toString();
-            items[i] = getString(R.string.wpm_history_item, wpm, rec.words, secs, rec.language, rec.model, timeStr);
+            if (rec.totalDurationMs > rec.durationMs && (speechWpm != totalWpm || !speechTime.equals(totalTime))) {
+                items[i] = getString(R.string.wpm_history_item, speechWpm, totalWpm, rec.words, speechTime, totalTime, rec.language, rec.model, timeStr);
+            } else {
+                items[i] = getString(R.string.wpm_history_item_single, speechWpm, rec.words, speechTime, rec.language, rec.model, timeStr);
+            }
         }
 
         new MaterialAlertDialogBuilder(this)

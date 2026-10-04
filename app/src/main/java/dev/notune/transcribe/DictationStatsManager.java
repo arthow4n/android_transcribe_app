@@ -103,6 +103,7 @@ public final class DictationStatsManager {
         public int count = 0;
         public int totalWords = 0;
         public long totalDurationMs = 0L;
+        public long totalWithProcessingDurationMs = 0L;
 
         public GroupStats(String name) {
             this.name = name;
@@ -112,11 +113,19 @@ public final class DictationStatsManager {
             count++;
             totalWords += record.words;
             totalDurationMs += record.durationMs;
+            totalWithProcessingDurationMs += record.totalDurationMs;
         }
 
         public float getAverageWpm() {
             if (totalDurationMs > 0) {
                 return (totalWords * 60000.0f) / totalDurationMs;
+            }
+            return 0f;
+        }
+
+        public float getAverageTotalWpm() {
+            if (totalWithProcessingDurationMs > 0) {
+                return (totalWords * 60000.0f) / totalWithProcessingDurationMs;
             }
             return 0f;
         }
@@ -129,8 +138,11 @@ public final class DictationStatsManager {
         public int totalPastes = 0;
         public int totalWords = 0;
         public long totalDurationMs = 0L;
+        public long totalWithProcessingDurationMs = 0L;
         public float averageWpm = 0f;
+        public float averageTotalWpm = 0f;
         public float peakWpm = 0f;
+        public float peakTotalWpm = 0f;
         public SessionRecord lastPaste = null;
         public final Map<String, GroupStats> byLanguage = new LinkedHashMap<>();
         public final Map<String, GroupStats> byModel = new LinkedHashMap<>();
@@ -202,11 +214,16 @@ public final class DictationStatsManager {
         summary.totalPastes = list.size();
 
         float peak = 0f;
+        float peakTotal = 0f;
         for (SessionRecord rec : list) {
             summary.totalWords += rec.words;
             summary.totalDurationMs += rec.durationMs;
+            summary.totalWithProcessingDurationMs += rec.totalDurationMs;
             if (rec.wpm > peak) {
                 peak = rec.wpm;
+            }
+            if (rec.totalWpm > peakTotal) {
+                peakTotal = rec.totalWpm;
             }
 
             // By Language
@@ -229,7 +246,11 @@ public final class DictationStatsManager {
         if (summary.totalDurationMs > 0) {
             summary.averageWpm = (summary.totalWords * 60000.0f) / summary.totalDurationMs;
         }
+        if (summary.totalWithProcessingDurationMs > 0) {
+            summary.averageTotalWpm = (summary.totalWords * 60000.0f) / summary.totalWithProcessingDurationMs;
+        }
         summary.peakWpm = peak;
+        summary.peakTotalWpm = peakTotal;
         if (!list.isEmpty()) {
             summary.lastPaste = list.get(list.size() - 1);
             // Reverse order for recent sessions (most recent first)
@@ -353,6 +374,20 @@ public final class DictationStatsManager {
         long hours = mins / 60L;
         long remMins = mins % 60L;
         return String.format(Locale.getDefault(), "%dh %02dm", hours, remMins);
+    }
+
+    public static String formatElapsed(long elapsedMs) {
+        long totalSeconds = elapsedMs / 1000L;
+        if (totalSeconds == 0L && elapsedMs > 0L) {
+            totalSeconds = 1L;
+        }
+        long hours = totalSeconds / 3600L;
+        long minutes = (totalSeconds % 3600L) / 60L;
+        long seconds = totalSeconds % 60L;
+        if (hours > 0L) {
+            return String.format(Locale.ROOT, "%d:%02d:%02d", hours, minutes, seconds);
+        }
+        return String.format(Locale.ROOT, "%02d:%02d", minutes, seconds);
     }
 
     private static List<SessionRecord> loadRecords(Context context) {
