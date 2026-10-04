@@ -65,6 +65,8 @@ public class RustInputMethodService extends InputMethodService {
     private View recordCircle;
     private MaterialButtonToggleGroup languageGroup;
     private android.widget.ImageView pasteButton;
+    private android.widget.ImageView copyButton;
+    private android.widget.ImageView cutButton;
     private android.widget.ImageView privacyToggleButton;
     private android.widget.ImageView historyButton;
     private View historyContainer;
@@ -187,6 +189,8 @@ public class RustInputMethodService extends InputMethodService {
             languageGroup = view.findViewById(R.id.ime_language_group);
 
             pasteButton = view.findViewById(R.id.ime_paste_button);
+            copyButton = view.findViewById(R.id.ime_copy_button);
+            cutButton = view.findViewById(R.id.ime_cut_button);
             privacyToggleButton = view.findViewById(R.id.ime_privacy_toggle);
             historyButton = view.findViewById(R.id.ime_history_button);
             historyContainer = view.findViewById(R.id.ime_history_container);
@@ -201,6 +205,14 @@ public class RustInputMethodService extends InputMethodService {
                     previewClipboardText();
                     return true;
                 });
+            }
+
+            if (copyButton != null) {
+                copyButton.setOnClickListener(v -> copySelectedText());
+            }
+
+            if (cutButton != null) {
+                cutButton.setOnClickListener(v -> cutSelectedText());
             }
 
             if (privacyToggleButton != null) {
@@ -1199,6 +1211,51 @@ public class RustInputMethodService extends InputMethodService {
                     android.widget.Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
             Log.w(TAG, "Failed to preview clipboard: " + e.getMessage());
+        }
+    }
+
+    private void copySelectedText() {
+        InputConnection ic = getCurrentInputConnection();
+        if (ic == null) return;
+
+        if (copyButton != null) {
+            copyButton.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP);
+        }
+
+        if (!ic.performContextMenuAction(android.R.id.copy)) {
+            CharSequence selected = ic.getSelectedText(0);
+            if (selected != null && selected.length() > 0) {
+                ClipboardManager clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                if (clipboard != null) {
+                    clipboard.setPrimaryClip(ClipData.newPlainText("copied_text", selected));
+                }
+            } else {
+                android.widget.Toast.makeText(this, R.string.ime_no_selection,
+                        android.widget.Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
+
+    private void cutSelectedText() {
+        InputConnection ic = getCurrentInputConnection();
+        if (ic == null) return;
+
+        if (cutButton != null) {
+            cutButton.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP);
+        }
+
+        if (!ic.performContextMenuAction(android.R.id.cut)) {
+            CharSequence selected = ic.getSelectedText(0);
+            if (selected != null && selected.length() > 0) {
+                ClipboardManager clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                if (clipboard != null) {
+                    clipboard.setPrimaryClip(ClipData.newPlainText("copied_text", selected));
+                }
+                ic.commitText("", 1);
+            } else {
+                android.widget.Toast.makeText(this, R.string.ime_no_selection,
+                        android.widget.Toast.LENGTH_SHORT).show();
+            }
         }
     }
 

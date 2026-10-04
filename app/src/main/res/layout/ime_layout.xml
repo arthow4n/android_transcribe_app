@@ -44,6 +44,34 @@
             android:contentDescription="@string/ime_paste_button"/>
 
         <ImageView
+            android:id="@+id/ime_copy_button"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:padding="5dp"
+            android:src="@drawable/ic_copy"
+            android:scaleType="centerInside"
+            android:tint="?attr/colorOnSurfaceVariant"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:focusable="true"
+            android:layout_marginStart="2dp"
+            android:contentDescription="@string/ime_copy_button"/>
+
+        <ImageView
+            android:id="@+id/ime_cut_button"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:padding="5dp"
+            android:src="@drawable/ic_cut"
+            android:scaleType="centerInside"
+            android:tint="?attr/colorOnSurfaceVariant"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:focusable="true"
+            android:layout_marginStart="2dp"
+            android:contentDescription="@string/ime_cut_button"/>
+
+        <ImageView
             android:id="@+id/ime_privacy_toggle"
             android:layout_width="34dp"
             android:layout_height="34dp"
