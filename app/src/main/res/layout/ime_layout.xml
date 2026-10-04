@@ -499,15 +499,34 @@
                 android:layout_gravity="center"
                 android:contentDescription="@string/section_ime"/>
 
-            <ProgressBar
-                android:id="@+id/ime_progress"
-                style="?android:attr/progressBarStyleSmall"
-                android:layout_width="24dp"
-                android:layout_height="24dp"
+            <LinearLayout
+                android:id="@+id/ime_progress_container"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
                 android:layout_gravity="center"
-                android:indeterminate="true"
-                android:indeterminateTint="?attr/colorPrimary"
-                android:visibility="gone"/>
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:visibility="gone">
+
+                <ProgressBar
+                    android:id="@+id/ime_progress"
+                    style="?android:attr/progressBarStyleSmall"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:indeterminate="true"
+                    android:indeterminateTint="?attr/colorPrimary"/>
+
+                <TextView
+                    android:id="@+id/ime_progress_percent"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:textAppearance="?attr/textAppearanceLabelMedium"
+                    android:textStyle="bold"
+                    android:includeFontPadding="false"
+                    android:textColor="?attr/colorOnSecondaryContainer"
+                    android:text="0%"/>
+            </LinearLayout>
         </FrameLayout>
 
         <!-- Space button: flexible in the middle -->

@@ -65,4 +65,34 @@ public class RustInputMethodServiceTest {
         // "你好世界。" -> deletes "界。" (2 chars)
         assertEquals(2, RustInputMethodService.calculateDeleteCount("你好世界。"));
     }
+
+    @Test
+    public void testCalculateCatchUpPercentStreaming() {
+        // 0 audio processed -> 0%
+        assertEquals(0, RustInputMethodService.calculateCatchUpPercent(0, 10000, 0, 0, 1.0f));
+
+        // 5s of 10s audio processed -> 50%
+        assertEquals(50, RustInputMethodService.calculateCatchUpPercent(5000, 10000, 0, 0, 1.0f));
+
+        // 9.5s of 10s audio processed -> 95%
+        assertEquals(95, RustInputMethodService.calculateCatchUpPercent(9500, 10000, 0, 0, 1.0f));
+
+        // 10s of 10s audio processed -> 100%
+        assertEquals(100, RustInputMethodService.calculateCatchUpPercent(10000, 10000, 0, 0, 1.0f));
+
+        // Processed exceeds total slightly due to clock/sample rounding -> clamped at 100%
+        assertEquals(100, RustInputMethodService.calculateCatchUpPercent(10500, 10000, 0, 0, 1.0f));
+
+        // Zero total audio -> 0%
+        assertEquals(0, RustInputMethodService.calculateCatchUpPercent(5000, 0, 0, 0, 1.0f));
+    }
+
+    @Test
+    public void testCalculateCatchUpPercentEstimatedFallback() {
+        // Non-streaming fallback: total 10s, speed 1.0x, 2s elapsed -> 20%
+        assertEquals(20, RustInputMethodService.calculateCatchUpPercent(0, 10000, 1000, 3000, 1.0f));
+
+        // Fallback caps at 95% until complete
+        assertEquals(95, RustInputMethodService.calculateCatchUpPercent(0, 10000, 1000, 20000, 1.0f));
+    }
 }

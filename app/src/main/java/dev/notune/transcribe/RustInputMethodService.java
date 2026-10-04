@@ -56,6 +56,8 @@ public class RustInputMethodService extends InputMethodService {
     private View recordContainer;
     private android.widget.ImageView micIcon;
     private ProgressBar progressBar;
+    private View progressContainer;
+    private TextView progressPercentView;
     private View backspaceButton;
     private View spaceButton;
     private View enterButton;
@@ -120,6 +122,8 @@ public class RustInputMethodService extends InputMethodService {
     // even when native inference is busy.
     private long recordingStartedAtMs = 0L;
     private long lastRecordingDurationMs = 0L;
+    private long totalAudioMs = 0L;
+    private long processingStartedAtMs = 0L;
     private long processedAudioMs = 0L;
     private int processedWords = 0;
     private float currentProcessingSpeed = -1f;
@@ -130,6 +134,9 @@ public class RustInputMethodService extends InputMethodService {
         public void run() {
             if (isRecording || isProcessingStatus()) {
                 updateStatsView();
+                if (isProcessingStatus()) {
+                    updateProcessingProgress();
+                }
                 mainHandler.postDelayed(this, 250L);
             }
         }
@@ -193,6 +200,8 @@ public class RustInputMethodService extends InputMethodService {
             modelSpinner = view.findViewById(R.id.ime_model_spinner);
             statsView = view.findViewById(R.id.ime_stats_text);
             progressBar = view.findViewById(R.id.ime_progress);
+            progressContainer = view.findViewById(R.id.ime_progress_container);
+            progressPercentView = view.findViewById(R.id.ime_progress_percent);
             recordContainer = view.findViewById(R.id.ime_record_container);
             micIcon = view.findViewById(R.id.ime_mic_icon);
             micLevelView = view.findViewById(R.id.ime_mic_level);
@@ -595,17 +604,22 @@ public class RustInputMethodService extends InputMethodService {
             TranscriptionHistoryManager.startSession();
             recordingStartedAtMs = android.os.SystemClock.elapsedRealtime();
             lastRecordingDurationMs = 0L;
+            totalAudioMs = 0L;
+            processingStartedAtMs = 0L;
             processedAudioMs = 0L;
             processedWords = 0;
             currentProcessingSpeed = -1f;
             averageProcessingSpeed = -1f;
             lastStreamingStatsAtMs = 0L;
+            updateProcessingProgress();
             updateStatsView();
             mainHandler.removeCallbacks(statsTicker);
             mainHandler.post(statsTicker);
         } else if (!recording && wasRecording) {
             lastRecordingDurationMs = Math.max(0L,
                     android.os.SystemClock.elapsedRealtime() - recordingStartedAtMs);
+            processingStartedAtMs = android.os.SystemClock.elapsedRealtime();
+            updateProcessingProgress();
             // Keep the final metrics visible during the short native finalize
             // phase; the ticker stops once the status returns to Ready.
             updateStatsView();
@@ -619,7 +633,8 @@ public class RustInputMethodService extends InputMethodService {
         if (recording) {
             if (statusView != null) statusView.setText("Listening... (tap to stop)");
             if (hintView != null) hintView.setVisibility(View.GONE);
-            if (progressBar != null) progressBar.setVisibility(View.GONE);
+            if (progressContainer != null) progressContainer.setVisibility(View.GONE);
+            else if (progressBar != null) progressBar.setVisibility(View.GONE);
             if (micIcon != null) {
                 micIcon.setImageResource(R.drawable.ic_stop);
                 micIcon.setContentDescription("Stop listening");
@@ -630,12 +645,15 @@ public class RustInputMethodService extends InputMethodService {
             if (isProcessing) {
                 if (statusView != null) statusView.setText("Processing...");
                 if (hintView != null) hintView.setVisibility(View.GONE);
-                if (progressBar != null) progressBar.setVisibility(View.VISIBLE);
+                if (progressContainer != null) progressContainer.setVisibility(View.VISIBLE);
+                else if (progressBar != null) progressBar.setVisibility(View.VISIBLE);
                 if (micIcon != null) micIcon.setVisibility(View.GONE);
+                updateProcessingProgress();
             } else {
                 if (statusView != null) statusView.setText("Tap to speak");
                 if (hintView != null) hintView.setVisibility(View.GONE);
-                if (progressBar != null) progressBar.setVisibility(View.GONE);
+                if (progressContainer != null) progressContainer.setVisibility(View.GONE);
+                else if (progressBar != null) progressBar.setVisibility(View.GONE);
                 if (micIcon != null) {
                     micIcon.setImageResource(R.drawable.ic_mic);
                     micIcon.setContentDescription(getString(R.string.section_ime));
@@ -681,6 +699,9 @@ public class RustInputMethodService extends InputMethodService {
         if (progressBar != null) {
             progressBar.setIndeterminateTintList(ColorStateList.valueOf(
                     MaterialColors.getColor(progressBar, iconAttr)));
+        }
+        if (progressPercentView != null) {
+            progressPercentView.setTextColor(MaterialColors.getColor(progressPercentView, iconAttr));
         }
     }
 
@@ -845,6 +866,10 @@ public class RustInputMethodService extends InputMethodService {
                 if ("Canceled".equals(status) || (status.startsWith("Error") && !isRecording)) {
                     recordingStartedAtMs = 0L;
                     lastRecordingDurationMs = 0L;
+                    totalAudioMs = 0L;
+                    processedAudioMs = 0L;
+                    processingStartedAtMs = 0L;
+                    updateProcessingProgress();
                 }
             }
             updateUiState();
@@ -900,13 +925,18 @@ public class RustInputMethodService extends InputMethodService {
             }
         }
 
-        // Show progress spinner in record button when busy
-        if (progressBar != null) {
+        // Show progress spinner & percent in record button when busy
+        if (progressContainer != null) {
+            progressContainer.setVisibility(isBusy ? View.VISIBLE : View.GONE);
+        } else if (progressBar != null) {
             progressBar.setVisibility(isBusy ? View.VISIBLE : View.GONE);
         }
         if (micIcon != null) {
             micIcon.setVisibility(isBusy ? View.GONE : View.VISIBLE);
             micIcon.setImageResource(isRecording ? R.drawable.ic_stop : R.drawable.ic_mic);
+        }
+        if (isBusy) {
+            updateProcessingProgress();
         }
 
         // Disable button only during transcription/processing/waiting or fatal errors
@@ -936,6 +966,10 @@ public class RustInputMethodService extends InputMethodService {
     // Called from Rust
     public void onTextTranscribed(String text) {
         mainHandler.post(() -> {
+            totalAudioMs = 0L;
+            processedAudioMs = 0L;
+            processingStartedAtMs = 0L;
+            updateProcessingProgress();
             if (text == null || text.trim().isEmpty()) {
                 // Nothing recognized — don't insert a stray space.
                 updateRecordButtonUI(false);
@@ -1156,15 +1190,19 @@ public class RustInputMethodService extends InputMethodService {
     }
 
     /** Called from the native streaming worker at a throttled cadence. */
-    public void onStreamingStats(long processedAudioMs, int words,
+    public void onStreamingStats(long processedAudioMs, long totalAudioMs, int words,
             float currentSpeed, float averageSpeed) {
         mainHandler.post(() -> {
             this.processedAudioMs = Math.max(0L, processedAudioMs);
+            if (totalAudioMs > 0L) {
+                this.totalAudioMs = totalAudioMs;
+            }
             processedWords = Math.max(0, words);
             currentProcessingSpeed = sanitizeSpeed(currentSpeed);
             averageProcessingSpeed = sanitizeSpeed(averageSpeed);
             lastStreamingStatsAtMs = android.os.SystemClock.elapsedRealtime();
             updateStatsView();
+            updateProcessingProgress();
         });
     }
 
@@ -1484,6 +1522,39 @@ public class RustInputMethodService extends InputMethodService {
         statsView.setText(getString(R.string.ime_stats_format, formatElapsed(elapsedMs),
                 processedWords, formatSpeed(currentRateFresh ? currentProcessingSpeed : -1f),
                 formatSpeed(averageProcessingSpeed)));
+    }
+
+    static int calculateCatchUpPercent(long processedAudioMs, long totalAudioMs,
+            long processingStartedAtMs, long nowMs, float averageSpeed) {
+        long totalMs = totalAudioMs;
+        if (totalMs <= 0L) {
+            return 0;
+        }
+        if (processedAudioMs > 0L) {
+            return (int) Math.min(100, Math.max(0, (processedAudioMs * 100L) / totalMs));
+        }
+        if (processingStartedAtMs > 0L && nowMs >= processingStartedAtMs) {
+            float speed = averageSpeed > 0f ? averageSpeed : 1.0f;
+            long expectedProcessingMs = (long) (totalMs / speed);
+            if (expectedProcessingMs > 0) {
+                long elapsed = nowMs - processingStartedAtMs;
+                return (int) Math.min(95, Math.max(0, (elapsed * 100L) / expectedProcessingMs));
+            }
+        }
+        return 0;
+    }
+
+    private void updateProcessingProgress() {
+        if (progressPercentView == null) return;
+        if (!isProcessingStatus()) {
+            progressPercentView.setText("0%");
+            return;
+        }
+
+        long totalMs = totalAudioMs > 0L ? totalAudioMs : lastRecordingDurationMs;
+        long nowMs = android.os.SystemClock.elapsedRealtime();
+        int percent = calculateCatchUpPercent(processedAudioMs, totalMs, processingStartedAtMs, nowMs, averageProcessingSpeed);
+        progressPercentView.setText(percent + "%");
     }
 
     private void hideStatsIfIdle() {

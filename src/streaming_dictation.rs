@@ -29,6 +29,7 @@ pub struct StreamingControl {
     cancel_requested: AtomicBool,
     overflowed: AtomicBool,
     queued_samples: AtomicUsize,
+    total_samples: AtomicUsize,
 }
 
 impl StreamingControl {
@@ -38,6 +39,7 @@ impl StreamingControl {
         {
             return;
         }
+        self.total_samples.fetch_add(samples.len(), Ordering::Relaxed);
         for chunk in samples.chunks(AUDIO_CHUNK_SAMPLES) {
             if !self.reserve(chunk.len()) {
                 self.overflowed.store(true, Ordering::Release);
@@ -89,6 +91,10 @@ impl StreamingControl {
     pub fn overflowed(&self) -> bool {
         self.overflowed.load(Ordering::Acquire)
     }
+
+    pub fn total_samples(&self) -> usize {
+        self.total_samples.load(Ordering::Relaxed)
+    }
 }
 
 fn notify_status(jvm: &JavaVM, target: &GlobalRef, status: &str) {
@@ -137,6 +143,7 @@ fn notify_stats(
     jvm: &JavaVM,
     target: &GlobalRef,
     processed_audio_ms: i64,
+    total_audio_ms: i64,
     words: usize,
     current_speed: f32,
     average_speed: f32,
@@ -145,9 +152,10 @@ fn notify_stats(
         if let Err(error) = env.call_method(
             target.as_obj(),
             "onStreamingStats",
-            "(JIFF)V",
+            "(JJIFF)V",
             &[
                 processed_audio_ms.into(),
+                total_audio_ms.into(),
                 (words.min(i32::MAX as usize) as i32).into(),
                 current_speed.into(),
                 average_speed.into(),
@@ -293,6 +301,7 @@ pub fn start(
         cancel_requested: AtomicBool::new(false),
         overflowed: AtomicBool::new(false),
         queued_samples: AtomicUsize::new(0),
+        total_samples: AtomicUsize::new(0),
     });
     let worker_control = control.clone();
     std::thread::spawn(move || {
@@ -379,13 +388,21 @@ fn run_worker(
                 );
                 // Keep JNI traffic low enough for the audio thread and main
                 // looper while still making the keyboard feel live.
-                if last_stats.elapsed() >= Duration::from_millis(250) {
+                let stats_cadence = if finalizing {
+                    Duration::from_millis(100)
+                } else {
+                    Duration::from_millis(250)
+                };
+                if last_stats.elapsed() >= stats_cadence {
                     let snapshot = stream.text();
                     let (current_speed, average_speed) = stats.rates();
+                    let total_ms =
+                        (control.total_samples() as f64 / (SAMPLE_RATE / 1000.0)).round() as i64;
                     notify_stats(
                         &jvm,
                         &target,
                         stats.audio_ms(),
+                        total_ms,
                         count_words(&snapshot.full),
                         current_speed,
                         average_speed,
@@ -395,8 +412,9 @@ fn run_worker(
                     }
                     if last_stats_log.elapsed() >= Duration::from_secs(1) {
                         log::debug!(
-                            "stream metrics: audio={}ms current={:.3}x average={:.3}x",
+                            "stream metrics: audio={}ms total={}ms current={:.3}x average={:.3}x",
                             stats.audio_ms(),
+                            total_ms,
                             current_speed,
                             average_speed
                         );
@@ -418,17 +436,21 @@ fn run_worker(
                     stats.record_finalize(finalize_started.elapsed().as_secs_f64());
                     let snapshot = stream.text();
                     let (current_speed, average_speed) = stats.rates();
+                    let total_ms =
+                        (control.total_samples() as f64 / (SAMPLE_RATE / 1000.0)).round() as i64;
                     notify_stats(
                         &jvm,
                         &target,
-                        stats.audio_ms(),
+                        total_ms.max(stats.audio_ms()),
+                        total_ms,
                         count_words(&snapshot.full),
                         current_speed,
                         average_speed,
                     );
                     log::debug!(
-                        "stream metrics final: audio={}ms current={:.3}x average={:.3}x",
+                        "stream metrics final: audio={}ms total={}ms current={:.3}x average={:.3}x",
                         stats.audio_ms(),
+                        total_ms,
                         current_speed,
                         average_speed
                     );
@@ -461,6 +483,7 @@ mod tests {
                 cancel_requested: AtomicBool::new(false),
                 overflowed: AtomicBool::new(false),
                 queued_samples: AtomicUsize::new(0),
+                total_samples: AtomicUsize::new(0),
             }),
             receiver,
         )
@@ -480,6 +503,7 @@ mod tests {
             first.len() + second.len() + third.len(),
             AUDIO_CHUNK_SAMPLES * 2 + 1
         );
+        assert_eq!(control.total_samples(), AUDIO_CHUNK_SAMPLES * 2 + 1);
         assert!(!control.overflowed());
     }
 
