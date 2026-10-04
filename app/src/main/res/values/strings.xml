@@ -16,6 +16,7 @@
     <string name="ime_switch_language_desc">Language: %1$s. Tap to cycle, hold to switch keyboard</string>
     <string name="ime_model_format">Model: %1$s</string>
     <string name="ime_model_selector">Select speech model</string>
+    <string name="ime_open_app">Open app settings</string>
     <string name="ime_expand_keys">Show extra keys</string>
     <string name="ime_collapse_keys">Hide extra keys</string>
     <string name="ime_select_all">Select all text</string>

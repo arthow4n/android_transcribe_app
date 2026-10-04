@@ -6,6 +6,7 @@
     <string name="section_ime">Alternativa: tastiera vocale</string>
     <string name="desc_ime">Preferisci una tastiera dedicata? Attiva la tastiera Offline Voice Input, poi passa a essa dal selettore delle tastiere quando vuoi l\'immissione vocale come tastiera a sé.</string>
     <string name="btn_ime_settings">Apri impostazioni tastiera</string>
+    <string name="ime_open_app">Apri impostazioni app</string>
 
     <string name="section_subs">Sottotitoli in tempo reale</string>
     <string name="desc_subs">Mostra i sottotitoli per qualsiasi audio riprodotto sul dispositivo. Dopo l\'avvio, scegli \'Condividi tutto lo schermo\' per risultati migliori.</string>

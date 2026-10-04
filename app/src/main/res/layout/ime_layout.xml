@@ -58,6 +58,20 @@
                 android:contentDescription="@string/ime_model_selector"/>
         </FrameLayout>
 
+        <ImageView
+            android:id="@+id/ime_app_button"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:padding="5dp"
+            android:src="@drawable/ic_settings"
+            android:scaleType="centerInside"
+            android:tint="?attr/colorOnSurfaceVariant"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:focusable="true"
+            android:layout_marginStart="2dp"
+            android:contentDescription="@string/ime_open_app"/>
+
         <View
             android:layout_width="0dp"
             android:layout_height="0dp"

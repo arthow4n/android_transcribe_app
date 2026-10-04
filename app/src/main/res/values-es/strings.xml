@@ -6,6 +6,7 @@
     <string name="section_ime">Alternativa: teclado de voz</string>
     <string name="desc_ime">¿Prefieres un teclado dedicado? Activa el teclado Offline Voice Input y cambia a él desde el selector de teclados cuando quieras la entrada de voz como teclado propio.</string>
     <string name="btn_ime_settings">Abrir ajustes del teclado</string>
+    <string name="ime_open_app">Abrir ajustes de la app</string>
 
     <string name="section_subs">Subtítulos en directo</string>
     <string name="desc_subs">Muestra subtítulos para cualquier audio que se reproduzca en tu dispositivo. Tras iniciar, elige \'Compartir toda la pantalla\' para mejores resultados.</string>

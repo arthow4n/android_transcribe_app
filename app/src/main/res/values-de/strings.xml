@@ -6,6 +6,7 @@
     <string name="section_ime">Alternative: Sprach-Tastatur</string>
     <string name="desc_ime">Lieber eine eigene Tastatur? Aktiviere die Offline-Voice-Input-Tastatur und wechsle über den Tastaturumschalter zu ihr, wenn du Spracheingabe als eigene Tastatur nutzen möchtest.</string>
     <string name="btn_ime_settings">Tastatureinstellungen öffnen</string>
+    <string name="ime_open_app">App-Einstellungen öffnen</string>
 
     <string name="section_subs">Live-Untertitel</string>
     <string name="desc_subs">Untertitel für jede Audiowiedergabe auf deinem Gerät anzeigen. Wähle nach dem Start \'Gesamten Bildschirm teilen\' für beste Ergebnisse.</string>

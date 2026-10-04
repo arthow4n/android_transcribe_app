@@ -6,6 +6,7 @@
     <string name="section_ime">Alternativa: teclado de voz</string>
     <string name="desc_ime">Prefere um teclado dedicado? Ative o teclado Offline Voice Input e alterne para ele no seletor de teclados quando quiser a entrada de voz como teclado próprio.</string>
     <string name="btn_ime_settings">Abrir configurações do teclado</string>
+    <string name="ime_open_app">Abrir configurações do app</string>
 
     <string name="section_subs">Legendas ao vivo</string>
     <string name="desc_subs">Exiba legendas para qualquer áudio reproduzido no seu dispositivo. Após iniciar, escolha \'Compartilhar a tela inteira\' para melhores resultados.</string>

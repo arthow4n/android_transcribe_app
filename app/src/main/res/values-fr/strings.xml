@@ -6,6 +6,7 @@
     <string name="section_ime">Alternative : clavier vocal</string>
     <string name="desc_ime">Vous préférez un clavier dédié ? Activez le clavier Offline Voice Input, puis passez-y depuis le sélecteur de clavier quand vous voulez la saisie vocale comme clavier à part entière.</string>
     <string name="btn_ime_settings">Ouvrir les paramètres du clavier</string>
+    <string name="ime_open_app">Ouvrir les paramètres de l\'application</string>
 
     <string name="section_subs">Sous-titres en direct</string>
     <string name="desc_subs">Affichez des sous-titres pour tout audio lu sur votre appareil. Après le démarrage, choisissez \'Partager tout l\'écran\' pour de meilleurs résultats.</string>

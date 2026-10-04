@@ -61,6 +61,7 @@ public class RustInputMethodService extends InputMethodService {
     private View enterButton;
     private TextView languageSwitchButton;
     private View modelButton;
+    private View appButton;
     private LinearLayout actionRow;
     private View deleteWordButton;
     private View qwertyContainer;
@@ -203,6 +204,7 @@ public class RustInputMethodService extends InputMethodService {
             enterButton = view.findViewById(R.id.ime_enter);
             languageSwitchButton = view.findViewById(R.id.ime_language_switch);
             modelButton = view.findViewById(R.id.ime_model_button);
+            appButton = view.findViewById(R.id.ime_app_button);
             actionRow = view.findViewById(R.id.ime_action_row);
             deleteWordButton = view.findViewById(R.id.ime_delete_word);
             qwertyContainer = view.findViewById(R.id.ime_qwerty_container);
@@ -283,6 +285,10 @@ public class RustInputMethodService extends InputMethodService {
                     openModelsActivity();
                     return true;
                 });
+            }
+
+            if (appButton != null) {
+                appButton.setOnClickListener(v -> openMainActivity());
             }
 
             if (selectAllButton != null) {
@@ -1845,6 +1851,16 @@ public class RustInputMethodService extends InputMethodService {
             displayLastWpm(last);
         } else {
             lastWpmView.setVisibility(View.GONE);
+        }
+    }
+
+    private void openMainActivity() {
+        try {
+            Intent intent = new Intent(this, MainActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+        } catch (Throwable t) {
+            Log.w(TAG, "Failed to open MainActivity", t);
         }
     }
 

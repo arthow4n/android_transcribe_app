@@ -522,7 +522,8 @@ pub fn ensure_loaded_from_thread(
     }
 }
 
-/// Inference thread count: the number of performance cores, capped at 4.
+/// Inference thread count: the number of performance cores, capped at 4, leaving
+/// at least one core free to avoid UI/audio starvation and thermal throttling.
 ///
 /// Phone SoCs are heterogeneous: fast cores paired with slow efficiency
 /// cores. ggml synchronizes all threads after each operation, so a thread
@@ -534,7 +535,7 @@ pub fn ensure_loaded_from_thread(
 /// and any preempted worker stalls the pool at the next op barrier; past
 /// 4 threads the matmuls are memory-bound on phone-class SoCs anyway, and
 /// more threads mainly build up heat. If sysfs is unreadable, falls back
-/// to a conservative 4. The `model_threads` config file (user-settable in
+/// to a conservative 3. The `model_threads` config file (user-settable in
 /// the Models screen) overrides the heuristic.
 fn performance_core_count() -> i32 {
     let mut freqs: Vec<u64> = Vec::new();
@@ -551,7 +552,10 @@ fn performance_core_count() -> i32 {
     match freqs.iter().max() {
         Some(&max) if max > 0 => {
             let fast = freqs.iter().filter(|&&f| f * 10 >= max * 7).count();
-            let threads = fast.clamp(1, 4);
+            // Leave one core free when multiple performance cores exist,
+            // preventing thermal throttling and audio/UI thread starvation.
+            let target = if fast > 2 { fast - 1 } else { fast };
+            let threads = target.clamp(1, 4);
             log::info!(
                 "cpu clusters {:?} kHz -> {} performance cores -> {} threads",
                 freqs,
@@ -561,9 +565,15 @@ fn performance_core_count() -> i32 {
             threads as i32
         }
         _ => std::thread::available_parallelism()
-            .map(|n| n.get())
-            .unwrap_or(4)
-            .min(4) as i32,
+            .map(|n| {
+                let count = n.get();
+                if count > 2 {
+                    (count - 1).min(3)
+                } else {
+                    count.min(2)
+                }
+            })
+            .unwrap_or(3) as i32,
     }
 }
 
