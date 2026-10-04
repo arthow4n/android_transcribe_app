@@ -701,7 +701,7 @@ public class RustInputMethodService extends InputMethodService {
             if (status != null && (status.startsWith("Error")
                     || "Canceled".equals(status) || "Ready".equals(status))) {
                 mainHandler.removeCallbacks(statsTicker);
-                if (!isRecording) {
+                if ("Canceled".equals(status) || (status.startsWith("Error") && !isRecording)) {
                     recordingStartedAtMs = 0L;
                     lastRecordingDurationMs = 0L;
                 }
