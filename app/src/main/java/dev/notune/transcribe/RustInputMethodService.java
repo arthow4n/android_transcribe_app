@@ -21,6 +21,7 @@ import android.content.ClipData;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.view.MotionEvent;
+import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
 import android.content.res.ColorStateList;
 import android.view.ContextThemeWrapper;
@@ -59,6 +60,10 @@ public class RustInputMethodService extends InputMethodService {
     private View spaceButton;
     private View enterButton;
     private TextView languageSwitchButton;
+    private View modelButton;
+    private View bottomKeyRow;
+    private android.widget.ImageView expandToggleButton;
+    private View selectAllButton;
     private View inputView;
     private MicLevelView micLevelView;
     private View recordCircle;
@@ -181,10 +186,13 @@ public class RustInputMethodService extends InputMethodService {
             recordCircle = view.findViewById(R.id.ime_record_circle);
             hintView = view.findViewById(R.id.ime_hint);
             backspaceButton = view.findViewById(R.id.ime_backspace);
-            View selectAllButton = view.findViewById(R.id.ime_select_all);
+            selectAllButton = view.findViewById(R.id.ime_select_all);
             spaceButton = view.findViewById(R.id.ime_space);
             enterButton = view.findViewById(R.id.ime_enter);
             languageSwitchButton = view.findViewById(R.id.ime_language_switch);
+            modelButton = view.findViewById(R.id.ime_model_button);
+            bottomKeyRow = view.findViewById(R.id.ime_bottom_key_row);
+            expandToggleButton = view.findViewById(R.id.ime_expand_toggle);
 
             pasteButton = view.findViewById(R.id.ime_paste_button);
             copyButton = view.findViewById(R.id.ime_copy_button);
@@ -250,7 +258,21 @@ public class RustInputMethodService extends InputMethodService {
 
             setupModelSpinner();
 
-            selectAllButton.setOnClickListener(v -> selectAllText());
+            if (modelButton != null) {
+                modelButton.setOnClickListener(v -> {
+                    if (modelSpinner != null) {
+                        modelSpinner.performClick();
+                    }
+                });
+                modelButton.setOnLongClickListener(v -> {
+                    openModelsActivity();
+                    return true;
+                });
+            }
+
+            if (selectAllButton != null) {
+                selectAllButton.setOnClickListener(v -> selectAllText());
+            }
 
             if (languageSwitchButton != null) {
                 updateLanguageButtonText();
@@ -259,6 +281,11 @@ public class RustInputMethodService extends InputMethodService {
                     switchLanguageOrKeyboard();
                     return true;
                 });
+            }
+
+            updateBottomRowVisibility();
+            if (expandToggleButton != null) {
+                expandToggleButton.setOnClickListener(v -> toggleBottomRow());
             }
 
             // Key repeat runnable for backspace
@@ -428,6 +455,7 @@ public class RustInputMethodService extends InputMethodService {
         if (!isRecording) {
             refreshModelSpinner();
             updateLanguageButtonText();
+            updateBottomRowVisibility();
             showLastWpmIfAvailable();
         }
         if (isRecording) {
@@ -829,6 +857,12 @@ public class RustInputMethodService extends InputMethodService {
             languageSwitchButton.setAlpha(disable ? 0.5f : 1.0f);
         }
 
+        if (selectAllButton != null) {
+            boolean disable = isRecording || isTranscribing || isWaiting;
+            selectAllButton.setEnabled(!disable);
+            selectAllButton.setAlpha(disable ? 0.5f : 1.0f);
+        }
+
         // Switching models resets the shared native engine, so keep the
         // selector unavailable while a recording or model load is in flight.
         updateModelSelectorState(isRecording || isLoading || isTranscribing || isWaiting);
@@ -966,6 +1000,9 @@ public class RustInputMethodService extends InputMethodService {
         if (recordContainer != null) {
             recordContainer.setVisibility(show ? View.GONE : View.VISIBLE);
         }
+        if (bottomKeyRow != null) {
+            bottomKeyRow.setVisibility(show ? View.GONE : (isBottomRowExpanded() ? View.VISIBLE : View.GONE));
+        }
         if (historyButton != null) {
             int activeColor = MaterialColors.getColor(historyButton,
                     com.google.android.material.R.attr.colorPrimary);
@@ -1067,9 +1104,16 @@ public class RustInputMethodService extends InputMethodService {
     }
 
     private void setupModelSpinner() {
-        modelAdapter = new ArrayAdapter<>(modelSpinner.getContext(),
+        modelAdapter = new ArrayAdapter<String>(modelSpinner.getContext(),
                 R.layout.ime_model_spinner_item,
-                new ArrayList<>());
+                new ArrayList<>()) {
+            @Override
+            public View getView(int position, View convertView, ViewGroup parent) {
+                View v = super.getView(position, convertView, parent);
+                v.setVisibility(View.GONE);
+                return v;
+            }
+        };
         modelAdapter.setDropDownViewResource(R.layout.ime_model_spinner_dropdown_item);
         modelSpinner.setAdapter(modelAdapter);
         modelSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
@@ -1170,6 +1214,13 @@ public class RustInputMethodService extends InputMethodService {
             modelSpinner.setSelection(selected, false);
         }
         updatingModelSpinner = false;
+
+        if (modelButton != null) {
+            String displayModel = active.isEmpty()
+                    ? (hasBuiltin ? getString(R.string.models_builtin) : getString(R.string.models_none_selected))
+                    : stripModelExtension(active);
+            modelButton.setContentDescription(getString(R.string.ime_model_format, displayModel));
+        }
     }
 
     private static boolean isModelFileName(String name) {
@@ -1383,9 +1434,57 @@ public class RustInputMethodService extends InputMethodService {
     }
 
     private void updateModelSelectorState(boolean disabled) {
-        if (modelSpinner == null) return;
-        modelSpinner.setEnabled(!disabled);
-        modelSpinner.setAlpha(disabled ? 0.5f : 1.0f);
+        if (modelSpinner != null) {
+            modelSpinner.setEnabled(!disabled);
+            modelSpinner.setAlpha(disabled ? 0.5f : 1.0f);
+        }
+        if (modelButton != null) {
+            modelButton.setEnabled(!disabled);
+            modelButton.setAlpha(disabled ? 0.5f : 1.0f);
+        }
+    }
+
+    private static final String PREF_BOTTOM_ROW_EXPANDED = "bottom_row_expanded";
+
+    private boolean isBottomRowExpanded() {
+        return new File(getFilesDir(), PREF_BOTTOM_ROW_EXPANDED).exists();
+    }
+
+    private void setBottomRowExpanded(boolean expanded) {
+        File file = new File(getFilesDir(), PREF_BOTTOM_ROW_EXPANDED);
+        try {
+            if (expanded) {
+                if (!file.exists()) file.createNewFile();
+            } else {
+                if (file.exists()) file.delete();
+            }
+        } catch (IOException e) {
+            Log.w(TAG, "Could not update bottom row expanded state", e);
+        }
+        updateBottomRowVisibility();
+    }
+
+    private void toggleBottomRow() {
+        if (expandToggleButton != null) {
+            expandToggleButton.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP);
+        }
+        setBottomRowExpanded(!isBottomRowExpanded());
+    }
+
+    private void updateBottomRowVisibility() {
+        if (isHistoryVisible) return;
+        boolean expanded = isBottomRowExpanded();
+        if (bottomKeyRow != null) {
+            bottomKeyRow.setVisibility(expanded ? View.VISIBLE : View.GONE);
+        }
+        if (expandToggleButton != null) {
+            expandToggleButton.setImageResource(expanded
+                    ? R.drawable.ic_expand_less
+                    : R.drawable.ic_expand_more);
+            expandToggleButton.setContentDescription(getString(expanded
+                    ? R.string.ime_collapse_keys
+                    : R.string.ime_expand_keys));
+        }
     }
 
     private void displayLastWpm(DictationStatsManager.SessionRecord session) {

@@ -10,7 +10,7 @@
     android:paddingTop="6dp"
     android:paddingBottom="6dp">
 
-    <!-- Compact toolbar row: Model selector on left, privacy and history toggles on right -->
+    <!-- Compact toolbar row: Language, model selector, clipboard, select all, privacy, history, and toggle -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="36dp"
@@ -18,36 +18,70 @@
         android:gravity="center_vertical"
         android:paddingBottom="2dp">
 
-        <Spinner
-            android:id="@+id/ime_model_spinner"
+        <TextView
+            android:id="@+id/ime_language_switch"
+            android:layout_width="wrap_content"
+            android:minWidth="34dp"
+            android:layout_height="34dp"
+            android:gravity="center"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textAppearance="?attr/textAppearanceLabelMedium"
+            android:textStyle="bold"
+            android:clickable="true"
+            android:focusable="true"
+            android:contentDescription="@string/ime_switch_language"/>
+
+        <FrameLayout
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:layout_marginStart="2dp">
+
+            <ImageView
+                android:id="@+id/ime_model_button"
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:padding="5dp"
+                android:src="@drawable/ic_model"
+                android:scaleType="centerInside"
+                android:tint="?attr/colorOnSurfaceVariant"
+                android:contentDescription="@string/ime_model_selector"/>
+
+            <Spinner
+                android:id="@+id/ime_model_spinner"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:spinnerMode="dropdown"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/ime_model_selector"/>
+        </FrameLayout>
+
+        <View
             android:layout_width="0dp"
-            android:layout_height="36dp"
-            android:layout_weight="1"
-            android:spinnerMode="dropdown"
-            android:paddingStart="2dp"
-            android:paddingEnd="26dp"
-            android:backgroundTint="?attr/colorOnSurfaceVariant"
-            android:contentDescription="@string/ime_model_selector"/>
+            android:layout_height="0dp"
+            android:layout_weight="1"/>
 
         <ImageView
             android:id="@+id/ime_paste_button"
-            android:layout_width="34dp"
-            android:layout_height="34dp"
-            android:padding="5dp"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:padding="4dp"
             android:src="@drawable/ic_paste"
             android:scaleType="centerInside"
             android:tint="?attr/colorOnSurfaceVariant"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:clickable="true"
             android:focusable="true"
-            android:layout_marginStart="4dp"
+            android:layout_marginStart="2dp"
             android:contentDescription="@string/ime_paste_button"/>
 
         <ImageView
             android:id="@+id/ime_copy_button"
-            android:layout_width="34dp"
-            android:layout_height="34dp"
-            android:padding="5dp"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:padding="4dp"
             android:src="@drawable/ic_copy"
             android:scaleType="centerInside"
             android:tint="?attr/colorOnSurfaceVariant"
@@ -59,9 +93,9 @@
 
         <ImageView
             android:id="@+id/ime_clear_clipboard_button"
-            android:layout_width="34dp"
-            android:layout_height="34dp"
-            android:padding="5dp"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:padding="4dp"
             android:src="@drawable/ic_clear_clipboard"
             android:scaleType="centerInside"
             android:tint="?attr/colorOnSurfaceVariant"
@@ -73,9 +107,9 @@
 
         <ImageView
             android:id="@+id/ime_cut_button"
-            android:layout_width="34dp"
-            android:layout_height="34dp"
-            android:padding="5dp"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:padding="4dp"
             android:src="@drawable/ic_cut"
             android:scaleType="centerInside"
             android:tint="?attr/colorOnSurfaceVariant"
@@ -86,10 +120,24 @@
             android:contentDescription="@string/ime_cut_button"/>
 
         <ImageView
+            android:id="@+id/ime_select_all"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:padding="4dp"
+            android:src="@drawable/ic_select_all"
+            android:scaleType="centerInside"
+            android:tint="?attr/colorOnSurfaceVariant"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:focusable="true"
+            android:layout_marginStart="2dp"
+            android:contentDescription="@string/ime_select_all"/>
+
+        <ImageView
             android:id="@+id/ime_privacy_toggle"
-            android:layout_width="34dp"
-            android:layout_height="34dp"
-            android:padding="5dp"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:padding="4dp"
             android:src="@drawable/ic_incognito"
             android:scaleType="centerInside"
             android:tint="?attr/colorOnSurfaceVariant"
@@ -101,9 +149,9 @@
 
         <ImageView
             android:id="@+id/ime_history_button"
-            android:layout_width="34dp"
-            android:layout_height="34dp"
-            android:padding="5dp"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:padding="4dp"
             android:src="@drawable/ic_history"
             android:scaleType="centerInside"
             android:tint="?attr/colorOnSurfaceVariant"
@@ -112,6 +160,20 @@
             android:focusable="true"
             android:layout_marginStart="2dp"
             android:contentDescription="@string/ime_history_button"/>
+
+        <ImageView
+            android:id="@+id/ime_expand_toggle"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:padding="4dp"
+            android:src="@drawable/ic_expand_more"
+            android:scaleType="centerInside"
+            android:tint="?attr/colorOnSurfaceVariant"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:focusable="true"
+            android:layout_marginStart="2dp"
+            android:contentDescription="@string/ime_expand_keys"/>
     </LinearLayout>
 
     <!-- WPM of the last paste, shown directly below the toolbar when active -->
@@ -315,30 +377,15 @@
         </LinearLayout>
     </FrameLayout>
 
-    <!-- Bottom key row -->
+    <!-- Collapsible bottom key row -->
     <LinearLayout
+        android:id="@+id/ime_bottom_key_row"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:baselineAligned="false"
-        android:paddingTop="6dp">
-
-        <TextView
-            android:id="@+id/ime_language_switch"
-            android:layout_width="wrap_content"
-            android:minWidth="52dp"
-            android:layout_height="42dp"
-            android:gravity="center"
-            android:paddingStart="6dp"
-            android:paddingEnd="6dp"
-            android:background="@drawable/bg_ime_key"
-            android:textColor="?attr/colorOnSurfaceVariant"
-            android:textAppearance="?attr/textAppearanceLabelMedium"
-            android:textStyle="bold"
-            android:clickable="true"
-            android:focusable="true"
-            android:layout_marginEnd="8dp"
-            android:contentDescription="@string/ime_switch_language"/>
+        android:paddingTop="6dp"
+        android:visibility="gone">
 
         <ImageView
             android:id="@+id/ime_space"
@@ -356,7 +403,7 @@
 
         <ImageView
             android:id="@+id/ime_enter"
-            android:layout_width="52dp"
+            android:layout_width="56dp"
             android:layout_height="42dp"
             android:src="@drawable/ic_enter"
             android:scaleType="centerInside"
@@ -369,7 +416,7 @@
 
         <ImageView
             android:id="@+id/ime_backspace"
-            android:layout_width="52dp"
+            android:layout_width="56dp"
             android:layout_height="42dp"
             android:src="@drawable/ic_backspace"
             android:scaleType="centerInside"
@@ -377,20 +424,7 @@
             android:tint="?attr/colorOnSurfaceVariant"
             android:clickable="true"
             android:focusable="true"
-            android:layout_marginEnd="8dp"
             android:contentDescription="Backspace"/>
-
-        <ImageView
-            android:id="@+id/ime_select_all"
-            android:layout_width="52dp"
-            android:layout_height="42dp"
-            android:src="@drawable/ic_select_all"
-            android:scaleType="centerInside"
-            android:background="@drawable/bg_ime_key"
-            android:tint="?attr/colorOnSurfaceVariant"
-            android:clickable="true"
-            android:focusable="true"
-            android:contentDescription="@string/ime_select_all"/>
     </LinearLayout>
 
 </LinearLayout>
