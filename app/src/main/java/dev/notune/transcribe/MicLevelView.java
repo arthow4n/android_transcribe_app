@@ -66,6 +66,10 @@ public class MicLevelView extends View {
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
 
+        if (current <= 0.001f) {
+            return;
+        }
+
         float cx = getWidth() / 2f;
         float cy = getHeight() / 2f;
         float min = Math.min(getWidth(), getHeight()) / 2f;

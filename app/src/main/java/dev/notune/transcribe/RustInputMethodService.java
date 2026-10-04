@@ -624,11 +624,14 @@ public class RustInputMethodService extends InputMethodService {
                     micIcon.setVisibility(View.VISIBLE);
                 }
             }
-            if (micLevelView != null) micLevelView.setLevel(0f);
+            if (micLevelView != null) {
+                micLevelView.setLevel(0f);
+                micLevelView.setVisibility(View.GONE);
+            }
         }
     }
 
-    /** Tints the record button surface + mic/text: idle = primary container, recording = primary, processing = secondary container. */
+    /** Tints the record button surface + mic/text: idle = key surface, recording = primary, processing = secondary container. */
     private void tintRecordButton(boolean recording) {
         boolean isBusy = !recording && isProcessingStatus();
         int circleAttr;
@@ -640,8 +643,8 @@ public class RustInputMethodService extends InputMethodService {
             circleAttr = com.google.android.material.R.attr.colorSecondaryContainer;
             iconAttr = com.google.android.material.R.attr.colorOnSecondaryContainer;
         } else {
-            circleAttr = com.google.android.material.R.attr.colorPrimaryContainer;
-            iconAttr = com.google.android.material.R.attr.colorOnPrimaryContainer;
+            circleAttr = com.google.android.material.R.attr.colorSurfaceContainerHighest;
+            iconAttr = com.google.android.material.R.attr.colorOnSurface;
         }
         if (recordCircle != null) {
             recordCircle.setBackgroundTintList(ColorStateList.valueOf(
@@ -652,6 +655,7 @@ public class RustInputMethodService extends InputMethodService {
         }
         if (micLevelView != null) {
             micLevelView.setColor(MaterialColors.getColor(recordCircle != null ? recordCircle : micLevelView, iconAttr));
+            micLevelView.setVisibility(recording ? View.VISIBLE : View.GONE);
         }
         if (statusView != null) {
             statusView.setTextColor(MaterialColors.getColor(statusView, iconAttr));
@@ -1535,6 +1539,13 @@ public class RustInputMethodService extends InputMethodService {
         }
 
         int[] symbolIds = {
+            R.id.ime_key_backtick, R.id.ime_key_quote_single, R.id.ime_key_quote_double,
+            R.id.ime_key_brace_open, R.id.ime_key_brace_close, R.id.ime_key_bracket_open,
+            R.id.ime_key_bracket_close, R.id.ime_key_underscore, R.id.ime_key_minus,
+            R.id.ime_key_equal, R.id.ime_key_backslash,
+            R.id.ime_key_exclamation, R.id.ime_key_at, R.id.ime_key_hash, R.id.ime_key_dollar,
+            R.id.ime_key_percent, R.id.ime_key_caret, R.id.ime_key_ampersand, R.id.ime_key_asterisk,
+            R.id.ime_key_paren_open, R.id.ime_key_paren_close, R.id.ime_key_slash,
             R.id.ime_key_1, R.id.ime_key_2, R.id.ime_key_3, R.id.ime_key_4, R.id.ime_key_5,
             R.id.ime_key_6, R.id.ime_key_7, R.id.ime_key_8, R.id.ime_key_9, R.id.ime_key_0,
             R.id.ime_key_comma, R.id.ime_key_dot
