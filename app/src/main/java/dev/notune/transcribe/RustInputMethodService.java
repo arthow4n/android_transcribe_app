@@ -61,8 +61,8 @@ public class RustInputMethodService extends InputMethodService {
     private View enterButton;
     private TextView languageSwitchButton;
     private View modelButton;
-    private View bottomKeyRow;
-    private android.widget.ImageView expandToggleButton;
+    private View actionRow;
+    private View deleteWordButton;
     private View selectAllButton;
     private View inputView;
     private MicLevelView micLevelView;
@@ -171,7 +171,7 @@ public class RustInputMethodService extends InputMethodService {
                 return insets;
             });
 
-            statusView = view.findViewById(R.id.ime_status_text);
+            statusView = null;
             lastWpmView = view.findViewById(R.id.ime_last_wpm_text);
             if (lastWpmView != null) {
                 lastWpmView.setOnClickListener(v -> openAppStats());
@@ -184,15 +184,15 @@ public class RustInputMethodService extends InputMethodService {
             micIcon = view.findViewById(R.id.ime_mic_icon);
             micLevelView = view.findViewById(R.id.ime_mic_level);
             recordCircle = view.findViewById(R.id.ime_record_circle);
-            hintView = view.findViewById(R.id.ime_hint);
+            hintView = null;
             backspaceButton = view.findViewById(R.id.ime_backspace);
             selectAllButton = view.findViewById(R.id.ime_select_all);
             spaceButton = view.findViewById(R.id.ime_space);
             enterButton = view.findViewById(R.id.ime_enter);
             languageSwitchButton = view.findViewById(R.id.ime_language_switch);
             modelButton = view.findViewById(R.id.ime_model_button);
-            bottomKeyRow = view.findViewById(R.id.ime_bottom_key_row);
-            expandToggleButton = view.findViewById(R.id.ime_expand_toggle);
+            actionRow = view.findViewById(R.id.ime_action_row);
+            deleteWordButton = view.findViewById(R.id.ime_delete_word);
 
             pasteButton = view.findViewById(R.id.ime_paste_button);
             copyButton = view.findViewById(R.id.ime_copy_button);
@@ -283,9 +283,11 @@ public class RustInputMethodService extends InputMethodService {
                 });
             }
 
-            updateBottomRowVisibility();
-            if (expandToggleButton != null) {
-                expandToggleButton.setOnClickListener(v -> toggleBottomRow());
+            if (deleteWordButton != null) {
+                deleteWordButton.setOnClickListener(v -> {
+                    v.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP);
+                    deletePreviousWord();
+                });
             }
 
             // Key repeat runnable for backspace
@@ -401,12 +403,14 @@ public class RustInputMethodService extends InputMethodService {
                         != PackageManager.PERMISSION_GRANTED) {
                     if (statusView != null) statusView.setText("No mic permission - grant in app");
                     if (hintView != null) hintView.setText("Open the app to grant permission");
+                    android.widget.Toast.makeText(this, "No mic permission - grant in app", android.widget.Toast.LENGTH_SHORT).show();
                     return;
                 }
 
                 if (!ModelUtils.hasAnyModelInstalled(this)) {
                     if (statusView != null) statusView.setText(getString(R.string.models_none_installed));
                     if (hintView != null) hintView.setText(getString(R.string.models_open_settings_hint));
+                    android.widget.Toast.makeText(this, R.string.models_none_installed, android.widget.Toast.LENGTH_SHORT).show();
                     openModelsActivity();
                     return;
                 }
@@ -414,6 +418,7 @@ public class RustInputMethodService extends InputMethodService {
                 if (active == null) {
                     if (statusView != null) statusView.setText(getString(R.string.models_none_selected));
                     if (hintView != null) hintView.setText(getString(R.string.models_open_settings_hint));
+                    android.widget.Toast.makeText(this, R.string.models_none_selected, android.widget.Toast.LENGTH_SHORT).show();
                     openModelsActivity();
                     return;
                 }
@@ -455,7 +460,6 @@ public class RustInputMethodService extends InputMethodService {
         if (!isRecording) {
             refreshModelSpinner();
             updateLanguageButtonText();
-            updateBottomRowVisibility();
             showLastWpmIfAvailable();
         }
         if (isRecording) {
@@ -571,7 +575,11 @@ public class RustInputMethodService extends InputMethodService {
             if (statusView != null) statusView.setText("Listening... (tap to stop)");
             if (hintView != null) hintView.setVisibility(View.GONE);
             if (progressBar != null) progressBar.setVisibility(View.GONE);
-            if (micIcon != null) micIcon.setVisibility(View.VISIBLE);
+            if (micIcon != null) {
+                micIcon.setImageResource(R.drawable.ic_stop);
+                micIcon.setContentDescription("Stop listening");
+                micIcon.setVisibility(View.VISIBLE);
+            }
         } else {
             boolean isProcessing = isProcessingStatus();
             if (isProcessing) {
@@ -583,7 +591,11 @@ public class RustInputMethodService extends InputMethodService {
                 if (statusView != null) statusView.setText("Tap to speak");
                 if (hintView != null) hintView.setVisibility(View.GONE);
                 if (progressBar != null) progressBar.setVisibility(View.GONE);
-                if (micIcon != null) micIcon.setVisibility(View.VISIBLE);
+                if (micIcon != null) {
+                    micIcon.setImageResource(R.drawable.ic_mic);
+                    micIcon.setContentDescription(getString(R.string.section_ime));
+                    micIcon.setVisibility(View.VISIBLE);
+                }
             }
             if (micLevelView != null) micLevelView.setLevel(0f);
         }
@@ -610,6 +622,9 @@ public class RustInputMethodService extends InputMethodService {
         }
         if (micIcon != null) {
             micIcon.setColorFilter(MaterialColors.getColor(micIcon, iconAttr));
+        }
+        if (micLevelView != null) {
+            micLevelView.setColor(MaterialColors.getColor(recordCircle != null ? recordCircle : micLevelView, iconAttr));
         }
         if (statusView != null) {
             statusView.setTextColor(MaterialColors.getColor(statusView, iconAttr));
@@ -842,6 +857,7 @@ public class RustInputMethodService extends InputMethodService {
         }
         if (micIcon != null) {
             micIcon.setVisibility(isBusy ? View.GONE : View.VISIBLE);
+            micIcon.setImageResource(isRecording ? R.drawable.ic_stop : R.drawable.ic_mic);
         }
 
         // Disable button only during transcription/processing/waiting or fatal errors
@@ -997,11 +1013,10 @@ public class RustInputMethodService extends InputMethodService {
         if (historyContainer != null) {
             historyContainer.setVisibility(show ? View.VISIBLE : View.GONE);
         }
-        if (recordContainer != null) {
+        if (actionRow != null) {
+            actionRow.setVisibility(show ? View.GONE : View.VISIBLE);
+        } else if (recordContainer != null) {
             recordContainer.setVisibility(show ? View.GONE : View.VISIBLE);
-        }
-        if (bottomKeyRow != null) {
-            bottomKeyRow.setVisibility(show ? View.GONE : (isBottomRowExpanded() ? View.VISIBLE : View.GONE));
         }
         if (historyButton != null) {
             int activeColor = MaterialColors.getColor(historyButton,
@@ -1469,47 +1484,103 @@ public class RustInputMethodService extends InputMethodService {
         }
     }
 
-    private static final String PREF_BOTTOM_ROW_EXPANDED = "bottom_row_expanded";
+    private void deletePreviousWord() {
+        InputConnection ic = getCurrentInputConnection();
+        if (ic == null) return;
 
-    private boolean isBottomRowExpanded() {
-        return new File(getFilesDir(), PREF_BOTTOM_ROW_EXPANDED).exists();
+        CharSequence selected = ic.getSelectedText(0);
+        if (selected != null && selected.length() > 0) {
+            ic.commitText("", 1);
+            return;
+        }
+
+        CharSequence before = ic.getTextBeforeCursor(128, 0);
+        int deleteCount = calculateDeleteCount(before);
+        ic.deleteSurroundingText(deleteCount, 0);
     }
 
-    private void setBottomRowExpanded(boolean expanded) {
-        File file = new File(getFilesDir(), PREF_BOTTOM_ROW_EXPANDED);
-        try {
-            if (expanded) {
-                if (!file.exists()) file.createNewFile();
-            } else {
-                if (file.exists()) file.delete();
+    static int calculateDeleteCount(CharSequence before) {
+        if (before == null || before.length() == 0) {
+            return 1;
+        }
+
+        int len = before.length();
+        int i = len - 1;
+
+        // 1. Consume trailing whitespace
+        while (i >= 0 && Character.isWhitespace(before.charAt(i))) {
+            i--;
+        }
+
+        // 2. Consume trailing punctuation (if any)
+        boolean hasPunctuation = false;
+        while (i >= 0 && isPunctuation(before.charAt(i))) {
+            hasPunctuation = true;
+            i--;
+        }
+
+        // 3. Consume whitespace between punctuation and word (if any, e.g. "word , ")
+        if (hasPunctuation) {
+            while (i >= 0 && Character.isWhitespace(before.charAt(i))) {
+                i--;
             }
-        } catch (IOException e) {
-            Log.w(TAG, "Could not update bottom row expanded state", e);
         }
-        updateBottomRowVisibility();
+
+        // 4. Consume word characters
+        if (i >= 0) {
+            char c = before.charAt(i);
+            if (isCjk(c)) {
+                // For CJK ideographs/kana, delete one ideograph
+                i--;
+            } else if (isWordChar(c)) {
+                while (i >= 0) {
+                    char cur = before.charAt(i);
+                    if (isWordChar(cur)) {
+                        i--;
+                    } else if ((cur == '\'' || cur == '’') && i > 0 && isWordChar(before.charAt(i - 1))) {
+                        // Contraction apostrophe like don't or it's
+                        i--;
+                    } else {
+                        break;
+                    }
+                }
+
+                // 5. Also consume leading whitespace before this word, if any
+                while (i >= 0 && Character.isWhitespace(before.charAt(i))) {
+                    i--;
+                }
+            }
+        }
+
+        int deleteCount = len - (i + 1);
+        return deleteCount <= 0 ? 1 : deleteCount;
     }
 
-    private void toggleBottomRow() {
-        if (expandToggleButton != null) {
-            expandToggleButton.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP);
-        }
-        setBottomRowExpanded(!isBottomRowExpanded());
+    private static boolean isWordChar(char c) {
+        return Character.isLetterOrDigit(c) || c == '_';
     }
 
-    private void updateBottomRowVisibility() {
-        if (isHistoryVisible) return;
-        boolean expanded = isBottomRowExpanded();
-        if (bottomKeyRow != null) {
-            bottomKeyRow.setVisibility(expanded ? View.VISIBLE : View.GONE);
-        }
-        if (expandToggleButton != null) {
-            expandToggleButton.setImageResource(expanded
-                    ? R.drawable.ic_expand_less
-                    : R.drawable.ic_expand_more);
-            expandToggleButton.setContentDescription(getString(expanded
-                    ? R.string.ime_collapse_keys
-                    : R.string.ime_expand_keys));
-        }
+    private static boolean isPunctuation(char c) {
+        int type = Character.getType(c);
+        return type == Character.CONNECTOR_PUNCTUATION
+                || type == Character.DASH_PUNCTUATION
+                || type == Character.START_PUNCTUATION
+                || type == Character.END_PUNCTUATION
+                || type == Character.INITIAL_QUOTE_PUNCTUATION
+                || type == Character.FINAL_QUOTE_PUNCTUATION
+                || type == Character.OTHER_PUNCTUATION
+                || type == Character.MATH_SYMBOL;
+    }
+
+    private static boolean isCjk(char c) {
+        Character.UnicodeBlock block = Character.UnicodeBlock.of(c);
+        return block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS
+                || block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A
+                || block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_B
+                || block == Character.UnicodeBlock.CJK_COMPATIBILITY_IDEOGRAPHS
+                || block == Character.UnicodeBlock.HIRAGANA
+                || block == Character.UnicodeBlock.KATAKANA
+                || block == Character.UnicodeBlock.HANGUL_SYLLABLES;
     }
 
     private void displayLastWpm(DictationStatsManager.SessionRecord session) {

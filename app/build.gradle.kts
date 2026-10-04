@@ -16,6 +16,11 @@ val embedModel: Boolean = if (project.hasProperty("embedModel")) {
 android {
     namespace = "dev.notune.transcribe"
     compileSdk = 35
+    ndkVersion = "28.0.13004108"
+
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
 
     defaultConfig {
         applicationId = "dev.notune.transcribe"
@@ -105,6 +110,8 @@ dependencies {
         implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.22")
         implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22")
     }
+
+    testImplementation("junit:junit:4.13.2")
 }
 
 // ---------------------------------------------------------------------------

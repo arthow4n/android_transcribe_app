@@ -160,20 +160,6 @@
             android:focusable="true"
             android:layout_marginStart="2dp"
             android:contentDescription="@string/ime_history_button"/>
-
-        <ImageView
-            android:id="@+id/ime_expand_toggle"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:padding="4dp"
-            android:src="@drawable/ic_expand_more"
-            android:scaleType="centerInside"
-            android:tint="?attr/colorOnSurfaceVariant"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:clickable="true"
-            android:focusable="true"
-            android:layout_marginStart="2dp"
-            android:contentDescription="@string/ime_expand_keys"/>
     </LinearLayout>
 
     <!-- WPM of the last paste, shown directly below the toolbar when active -->
@@ -296,36 +282,63 @@
         </FrameLayout>
     </LinearLayout>
 
-    <!-- Record button: full-width rounded rectangle action button, slim and easy to tap -->
-    <FrameLayout
-        android:id="@+id/ime_record_container"
+    <!-- Unified Action Row: Space, Enter, Mic (flex), Backspace, Delete Word -->
+    <LinearLayout
+        android:id="@+id/ime_action_row"
         android:layout_width="match_parent"
-        android:layout_height="52dp"
-        android:layout_marginTop="3dp"
-        android:layout_marginBottom="3dp"
-        android:clickable="true"
-        android:focusable="true">
+        android:layout_height="48dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:baselineAligned="false"
+        android:layout_marginTop="2dp"
+        android:layout_marginBottom="2dp">
 
-        <View
-            android:id="@+id/ime_record_circle"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:background="@drawable/bg_ime_record"/>
+        <ImageView
+            android:id="@+id/ime_space"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:src="@drawable/ic_space"
+            android:scaleType="centerInside"
+            android:background="@drawable/bg_ime_key"
+            android:tint="?attr/colorOnSurfaceVariant"
+            android:clickable="true"
+            android:focusable="true"
+            android:layout_marginEnd="6dp"
+            android:contentDescription="Space"/>
 
-        <!-- Centered content: icon (or spinner) + status text -->
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp">
+        <ImageView
+            android:id="@+id/ime_enter"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:src="@drawable/ic_enter"
+            android:scaleType="centerInside"
+            android:background="@drawable/bg_ime_key"
+            android:tint="?attr/colorOnSurfaceVariant"
+            android:clickable="true"
+            android:focusable="true"
+            android:layout_marginEnd="6dp"
+            android:contentDescription="Enter"/>
 
+        <!-- Record button: flex to fill space in center -->
+        <FrameLayout
+            android:id="@+id/ime_record_container"
+            android:layout_width="0dp"
+            android:layout_height="44dp"
+            android:layout_weight="1"
+            android:clickable="true"
+            android:focusable="true">
+
+            <View
+                android:id="@+id/ime_record_circle"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/bg_ime_record"/>
+
+            <!-- Centered icon (mic / waveform / spinner) without text -->
             <FrameLayout
                 android:layout_width="32dp"
                 android:layout_height="32dp"
-                android:layout_gravity="center_vertical">
+                android:layout_gravity="center">
 
                 <dev.notune.transcribe.MicLevelView
                     android:id="@+id/ime_mic_level"
@@ -351,80 +364,33 @@
                     android:indeterminateTint="?attr/colorPrimary"
                     android:visibility="gone"/>
             </FrameLayout>
-
-            <TextView
-                android:id="@+id/ime_status_text"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:text="Tap to speak"
-                android:textColor="?attr/colorOnSurface"
-                android:textAppearance="?attr/textAppearanceTitleSmall"
-                android:singleLine="true"
-                android:ellipsize="end"/>
-
-            <TextView
-                android:id="@+id/ime_hint"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:text="Tap to Record"
-                android:textColor="?attr/colorOnSurfaceVariant"
-                android:textAppearance="?attr/textAppearanceLabelSmall"
-                android:singleLine="true"
-                android:ellipsize="end"
-                android:visibility="gone"/>
-        </LinearLayout>
-    </FrameLayout>
-
-    <!-- Collapsible bottom key row -->
-    <LinearLayout
-        android:id="@+id/ime_bottom_key_row"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:baselineAligned="false"
-        android:paddingTop="6dp"
-        android:visibility="gone">
-
-        <ImageView
-            android:id="@+id/ime_space"
-            android:layout_width="0dp"
-            android:layout_height="42dp"
-            android:layout_weight="1"
-            android:src="@drawable/ic_space"
-            android:scaleType="centerInside"
-            android:background="@drawable/bg_ime_key"
-            android:tint="?attr/colorOnSurfaceVariant"
-            android:clickable="true"
-            android:focusable="true"
-            android:layout_marginEnd="8dp"
-            android:contentDescription="Space"/>
-
-        <ImageView
-            android:id="@+id/ime_enter"
-            android:layout_width="56dp"
-            android:layout_height="42dp"
-            android:src="@drawable/ic_enter"
-            android:scaleType="centerInside"
-            android:background="@drawable/bg_ime_key"
-            android:tint="?attr/colorOnSurfaceVariant"
-            android:clickable="true"
-            android:focusable="true"
-            android:layout_marginEnd="8dp"
-            android:contentDescription="Enter"/>
+        </FrameLayout>
 
         <ImageView
             android:id="@+id/ime_backspace"
-            android:layout_width="56dp"
-            android:layout_height="42dp"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
             android:src="@drawable/ic_backspace"
             android:scaleType="centerInside"
             android:background="@drawable/bg_ime_key"
             android:tint="?attr/colorOnSurfaceVariant"
             android:clickable="true"
             android:focusable="true"
+            android:layout_marginStart="6dp"
+            android:layout_marginEnd="6dp"
             android:contentDescription="Backspace"/>
+
+        <ImageView
+            android:id="@+id/ime_delete_word"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:src="@drawable/ic_delete_word"
+            android:scaleType="centerInside"
+            android:background="@drawable/bg_ime_key"
+            android:tint="?attr/colorOnSurfaceVariant"
+            android:clickable="true"
+            android:focusable="true"
+            android:contentDescription="@string/ime_delete_word"/>
     </LinearLayout>
 
 </LinearLayout>
