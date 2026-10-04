@@ -472,6 +472,18 @@ public class RustInputMethodService extends InputMethodService {
                 }
             });
 
+            if (recordContainer != null) {
+                recordContainer.setOnLongClickListener(v -> {
+                    if (!recordContainer.isEnabled()) return false;
+                    if (!isRecording) {
+                        v.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
+                        switchLanguageOrKeyboard();
+                        return true;
+                    }
+                    return false;
+                });
+            }
+
             tintRecordButton(false);
             updateUiState();
             return view;
