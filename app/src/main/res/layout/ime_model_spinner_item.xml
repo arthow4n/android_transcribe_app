@@ -5,8 +5,9 @@
     android:minHeight="34dp"
     android:gravity="center_vertical"
     android:paddingStart="4dp"
-    android:paddingEnd="4dp"
+    android:paddingEnd="2dp"
     android:ellipsize="end"
     android:singleLine="true"
+    android:maxLines="1"
     android:textAppearance="?attr/textAppearanceLabelLarge"
     android:textColor="?attr/colorOnSurface" />

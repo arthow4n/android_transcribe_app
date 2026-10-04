@@ -25,7 +25,7 @@
             android:layout_weight="1"
             android:spinnerMode="dropdown"
             android:paddingStart="2dp"
-            android:paddingEnd="4dp"
+            android:paddingEnd="26dp"
             android:backgroundTint="?attr/colorOnSurfaceVariant"
             android:contentDescription="@string/ime_model_selector"/>
 
