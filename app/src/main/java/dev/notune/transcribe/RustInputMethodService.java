@@ -63,6 +63,18 @@ public class RustInputMethodService extends InputMethodService {
     private View modelButton;
     private View actionRow;
     private View deleteWordButton;
+    private View qwertyContainer;
+    private android.widget.ImageView expandToggleButton;
+    private android.widget.ImageView shiftKey;
+    private final List<TextView> letterKeys = new ArrayList<>();
+    private ShiftState shiftState = ShiftState.OFF;
+    private long lastShiftTapTime = 0L;
+
+    private enum ShiftState {
+        OFF,
+        ONE_SHOT,
+        CAPS_LOCK
+    }
     private View selectAllButton;
     private View inputView;
     private MicLevelView micLevelView;
@@ -193,6 +205,9 @@ public class RustInputMethodService extends InputMethodService {
             modelButton = view.findViewById(R.id.ime_model_button);
             actionRow = view.findViewById(R.id.ime_action_row);
             deleteWordButton = view.findViewById(R.id.ime_delete_word);
+            qwertyContainer = view.findViewById(R.id.ime_qwerty_container);
+            expandToggleButton = view.findViewById(R.id.ime_expand_toggle);
+            shiftKey = view.findViewById(R.id.ime_key_shift);
 
             pasteButton = view.findViewById(R.id.ime_paste_button);
             copyButton = view.findViewById(R.id.ime_copy_button);
@@ -289,6 +304,17 @@ public class RustInputMethodService extends InputMethodService {
                     deletePreviousWord();
                 });
             }
+
+            if (expandToggleButton != null) {
+                expandToggleButton.setOnClickListener(v -> toggleQwertyKeyboard());
+            }
+
+            if (shiftKey != null) {
+                shiftKey.setOnClickListener(v -> onShiftKeyClicked());
+            }
+
+            setupQwertyKeys(view);
+            updateQwertyVisibility();
 
             // Key repeat runnable for backspace
             backspaceRepeatRunnable = new Runnable() {
@@ -460,6 +486,7 @@ public class RustInputMethodService extends InputMethodService {
         if (!isRecording) {
             refreshModelSpinner();
             updateLanguageButtonText();
+            updateQwertyVisibility();
             showLastWpmIfAvailable();
         }
         if (isRecording) {
@@ -1018,6 +1045,9 @@ public class RustInputMethodService extends InputMethodService {
         } else if (recordContainer != null) {
             recordContainer.setVisibility(show ? View.GONE : View.VISIBLE);
         }
+        if (qwertyContainer != null) {
+            qwertyContainer.setVisibility(show ? View.GONE : (isQwertyExpanded() ? View.VISIBLE : View.GONE));
+        }
         if (historyButton != null) {
             int activeColor = MaterialColors.getColor(historyButton,
                     com.google.android.material.R.attr.colorPrimary);
@@ -1481,6 +1511,151 @@ public class RustInputMethodService extends InputMethodService {
         if (modelButton != null) {
             modelButton.setEnabled(!disabled);
             modelButton.setAlpha(disabled ? 0.5f : 1.0f);
+        }
+    }
+
+    private void setupQwertyKeys(View root) {
+        letterKeys.clear();
+        int[] letterIds = {
+            R.id.ime_key_q, R.id.ime_key_w, R.id.ime_key_e, R.id.ime_key_r, R.id.ime_key_t,
+            R.id.ime_key_y, R.id.ime_key_u, R.id.ime_key_i, R.id.ime_key_o, R.id.ime_key_p,
+            R.id.ime_key_aring,
+            R.id.ime_key_a, R.id.ime_key_s, R.id.ime_key_d, R.id.ime_key_f, R.id.ime_key_g,
+            R.id.ime_key_h, R.id.ime_key_j, R.id.ime_key_k, R.id.ime_key_l, R.id.ime_key_ouml,
+            R.id.ime_key_auml,
+            R.id.ime_key_z, R.id.ime_key_x, R.id.ime_key_c, R.id.ime_key_v, R.id.ime_key_b,
+            R.id.ime_key_n, R.id.ime_key_m
+        };
+        for (int id : letterIds) {
+            TextView tv = root.findViewById(id);
+            if (tv != null) {
+                letterKeys.add(tv);
+                tv.setOnClickListener(v -> onLetterKeyClicked(tv));
+            }
+        }
+
+        int[] symbolIds = {
+            R.id.ime_key_1, R.id.ime_key_2, R.id.ime_key_3, R.id.ime_key_4, R.id.ime_key_5,
+            R.id.ime_key_6, R.id.ime_key_7, R.id.ime_key_8, R.id.ime_key_9, R.id.ime_key_0,
+            R.id.ime_key_comma, R.id.ime_key_dot
+        };
+        for (int id : symbolIds) {
+            TextView tv = root.findViewById(id);
+            if (tv != null) {
+                tv.setOnClickListener(v -> onSymbolKeyClicked(tv));
+            }
+        }
+    }
+
+    private void onLetterKeyClicked(TextView tv) {
+        tv.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP);
+        CharSequence text = tv.getText();
+        if (text == null || text.length() == 0) return;
+        InputConnection ic = getCurrentInputConnection();
+        if (ic != null) {
+            ic.commitText(text, 1);
+        }
+        if (shiftState == ShiftState.ONE_SHOT) {
+            shiftState = ShiftState.OFF;
+            updateShiftUI();
+        }
+    }
+
+    private void onSymbolKeyClicked(TextView tv) {
+        tv.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP);
+        CharSequence text = tv.getText();
+        if (text == null || text.length() == 0) return;
+        InputConnection ic = getCurrentInputConnection();
+        if (ic != null) {
+            ic.commitText(text, 1);
+        }
+    }
+
+    private void onShiftKeyClicked() {
+        if (shiftKey == null) return;
+        shiftKey.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP);
+        long now = android.os.SystemClock.uptimeMillis();
+        if (shiftState == ShiftState.CAPS_LOCK) {
+            shiftState = ShiftState.OFF;
+        } else if (shiftState == ShiftState.ONE_SHOT) {
+            if (now - lastShiftTapTime < android.view.ViewConfiguration.getDoubleTapTimeout()) {
+                shiftState = ShiftState.CAPS_LOCK;
+            } else {
+                shiftState = ShiftState.OFF;
+            }
+        } else {
+            shiftState = ShiftState.ONE_SHOT;
+        }
+        lastShiftTapTime = now;
+        updateShiftUI();
+    }
+
+    private void updateShiftUI() {
+        boolean isUpper = (shiftState != ShiftState.OFF);
+        for (TextView tv : letterKeys) {
+            CharSequence current = tv.getText();
+            if (current != null && current.length() > 0) {
+                tv.setText(isUpper ? current.toString().toUpperCase(java.util.Locale.ROOT)
+                                   : current.toString().toLowerCase(java.util.Locale.ROOT));
+            }
+        }
+        if (shiftKey != null) {
+            if (shiftState == ShiftState.CAPS_LOCK) {
+                shiftKey.setImageResource(R.drawable.ic_shift_caps);
+                shiftKey.setColorFilter(MaterialColors.getColor(shiftKey,
+                        com.google.android.material.R.attr.colorPrimary));
+            } else if (shiftState == ShiftState.ONE_SHOT) {
+                shiftKey.setImageResource(R.drawable.ic_shift);
+                shiftKey.setColorFilter(MaterialColors.getColor(shiftKey,
+                        com.google.android.material.R.attr.colorPrimary));
+            } else {
+                shiftKey.setImageResource(R.drawable.ic_shift);
+                shiftKey.setColorFilter(MaterialColors.getColor(shiftKey,
+                        com.google.android.material.R.attr.colorOnSurfaceVariant));
+            }
+        }
+    }
+
+    private static final String PREF_QWERTY_EXPANDED = "qwerty_expanded";
+
+    private boolean isQwertyExpanded() {
+        return new File(getFilesDir(), PREF_QWERTY_EXPANDED).exists();
+    }
+
+    private void setQwertyExpanded(boolean expanded) {
+        File file = new File(getFilesDir(), PREF_QWERTY_EXPANDED);
+        try {
+            if (expanded) {
+                if (!file.exists()) file.createNewFile();
+            } else {
+                if (file.exists()) file.delete();
+            }
+        } catch (IOException e) {
+            Log.w(TAG, "Could not update qwerty expanded state", e);
+        }
+        updateQwertyVisibility();
+    }
+
+    private void toggleQwertyKeyboard() {
+        if (expandToggleButton != null) {
+            expandToggleButton.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP);
+        }
+        setQwertyExpanded(!isQwertyExpanded());
+    }
+
+    private void updateQwertyVisibility() {
+        if (isHistoryVisible) return;
+        boolean expanded = isQwertyExpanded();
+        if (qwertyContainer != null) {
+            qwertyContainer.setVisibility(expanded ? View.VISIBLE : View.GONE);
+        }
+        if (expandToggleButton != null) {
+            expandToggleButton.setImageResource(expanded
+                    ? R.drawable.ic_expand_less
+                    : R.drawable.ic_expand_more);
+            expandToggleButton.setContentDescription(getString(expanded
+                    ? R.string.ime_collapse_keys
+                    : R.string.ime_expand_keys));
         }
     }
 

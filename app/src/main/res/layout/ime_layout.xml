@@ -160,6 +160,20 @@
             android:focusable="true"
             android:layout_marginStart="2dp"
             android:contentDescription="@string/ime_history_button"/>
+
+        <ImageView
+            android:id="@+id/ime_expand_toggle"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:padding="4dp"
+            android:src="@drawable/ic_expand_more"
+            android:scaleType="centerInside"
+            android:tint="?attr/colorOnSurfaceVariant"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:focusable="true"
+            android:layout_marginStart="2dp"
+            android:contentDescription="@string/ime_expand_keys"/>
     </LinearLayout>
 
     <!-- WPM of the last paste, shown directly below the toolbar when active -->
@@ -280,6 +294,114 @@
                 android:textAppearance="?attr/textAppearanceBodyMedium"
                 android:visibility="gone"/>
         </FrameLayout>
+    </LinearLayout>
+
+    <!-- Swedish QWERTY Typing Panel (collapsible) -->
+    <LinearLayout
+        android:id="@+id/ime_qwerty_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingTop="2dp"
+        android:paddingBottom="2dp"
+        android:visibility="gone">
+
+        <!-- Row 1: Numbers (1-0) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="38dp"
+            android:orientation="horizontal"
+            android:baselineAligned="false">
+            <TextView android:id="@+id/ime_key_1" style="@style/ImeQwertyKey" android:text="1" />
+            <TextView android:id="@+id/ime_key_2" style="@style/ImeQwertyKey" android:text="2" />
+            <TextView android:id="@+id/ime_key_3" style="@style/ImeQwertyKey" android:text="3" />
+            <TextView android:id="@+id/ime_key_4" style="@style/ImeQwertyKey" android:text="4" />
+            <TextView android:id="@+id/ime_key_5" style="@style/ImeQwertyKey" android:text="5" />
+            <TextView android:id="@+id/ime_key_6" style="@style/ImeQwertyKey" android:text="6" />
+            <TextView android:id="@+id/ime_key_7" style="@style/ImeQwertyKey" android:text="7" />
+            <TextView android:id="@+id/ime_key_8" style="@style/ImeQwertyKey" android:text="8" />
+            <TextView android:id="@+id/ime_key_9" style="@style/ImeQwertyKey" android:text="9" />
+            <TextView android:id="@+id/ime_key_0" style="@style/ImeQwertyKey" android:text="0" />
+        </LinearLayout>
+
+        <!-- Row 2: q w e r t y u i o p å (11 keys) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="38dp"
+            android:orientation="horizontal"
+            android:baselineAligned="false"
+            android:layout_marginTop="2dp">
+            <TextView android:id="@+id/ime_key_q" style="@style/ImeQwertyKey" android:text="q" />
+            <TextView android:id="@+id/ime_key_w" style="@style/ImeQwertyKey" android:text="w" />
+            <TextView android:id="@+id/ime_key_e" style="@style/ImeQwertyKey" android:text="e" />
+            <TextView android:id="@+id/ime_key_r" style="@style/ImeQwertyKey" android:text="r" />
+            <TextView android:id="@+id/ime_key_t" style="@style/ImeQwertyKey" android:text="t" />
+            <TextView android:id="@+id/ime_key_y" style="@style/ImeQwertyKey" android:text="y" />
+            <TextView android:id="@+id/ime_key_u" style="@style/ImeQwertyKey" android:text="u" />
+            <TextView android:id="@+id/ime_key_i" style="@style/ImeQwertyKey" android:text="i" />
+            <TextView android:id="@+id/ime_key_o" style="@style/ImeQwertyKey" android:text="o" />
+            <TextView android:id="@+id/ime_key_p" style="@style/ImeQwertyKey" android:text="p" />
+            <TextView android:id="@+id/ime_key_aring" style="@style/ImeQwertyKey" android:text="å" />
+        </LinearLayout>
+
+        <!-- Row 3: a s d f g h j k l ö ä (11 keys) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="38dp"
+            android:orientation="horizontal"
+            android:baselineAligned="false"
+            android:layout_marginTop="2dp">
+            <TextView android:id="@+id/ime_key_a" style="@style/ImeQwertyKey" android:text="a" />
+            <TextView android:id="@+id/ime_key_s" style="@style/ImeQwertyKey" android:text="s" />
+            <TextView android:id="@+id/ime_key_d" style="@style/ImeQwertyKey" android:text="d" />
+            <TextView android:id="@+id/ime_key_f" style="@style/ImeQwertyKey" android:text="f" />
+            <TextView android:id="@+id/ime_key_g" style="@style/ImeQwertyKey" android:text="g" />
+            <TextView android:id="@+id/ime_key_h" style="@style/ImeQwertyKey" android:text="h" />
+            <TextView android:id="@+id/ime_key_j" style="@style/ImeQwertyKey" android:text="j" />
+            <TextView android:id="@+id/ime_key_k" style="@style/ImeQwertyKey" android:text="k" />
+            <TextView android:id="@+id/ime_key_l" style="@style/ImeQwertyKey" android:text="l" />
+            <TextView android:id="@+id/ime_key_ouml" style="@style/ImeQwertyKey" android:text="ö" />
+            <TextView android:id="@+id/ime_key_auml" style="@style/ImeQwertyKey" android:text="ä" />
+        </LinearLayout>
+
+        <!-- Row 4: Shift (1.5) | z x c v b n m (7 keys) | , (1.25) | . (1.25) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="38dp"
+            android:orientation="horizontal"
+            android:baselineAligned="false"
+            android:layout_marginTop="2dp">
+            <ImageView
+                android:id="@+id/ime_key_shift"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1.5"
+                android:scaleType="centerInside"
+                android:src="@drawable/ic_shift"
+                android:tint="?attr/colorOnSurfaceVariant"
+                android:background="@drawable/bg_ime_key"
+                android:clickable="true"
+                android:focusable="true"
+                android:layout_margin="1.5dp"
+                android:contentDescription="Shift" />
+            <TextView android:id="@+id/ime_key_z" style="@style/ImeQwertyKey" android:text="z" />
+            <TextView android:id="@+id/ime_key_x" style="@style/ImeQwertyKey" android:text="x" />
+            <TextView android:id="@+id/ime_key_c" style="@style/ImeQwertyKey" android:text="c" />
+            <TextView android:id="@+id/ime_key_v" style="@style/ImeQwertyKey" android:text="v" />
+            <TextView android:id="@+id/ime_key_b" style="@style/ImeQwertyKey" android:text="b" />
+            <TextView android:id="@+id/ime_key_n" style="@style/ImeQwertyKey" android:text="n" />
+            <TextView android:id="@+id/ime_key_m" style="@style/ImeQwertyKey" android:text="m" />
+            <TextView
+                android:id="@+id/ime_key_comma"
+                style="@style/ImeQwertyKey"
+                android:layout_weight="1.25"
+                android:text="," />
+            <TextView
+                android:id="@+id/ime_key_dot"
+                style="@style/ImeQwertyKey"
+                android:layout_weight="1.25"
+                android:text="." />
+        </LinearLayout>
     </LinearLayout>
 
     <!-- Unified Action Row: Space, Enter, Mic (flex), Backspace, Delete Word -->
