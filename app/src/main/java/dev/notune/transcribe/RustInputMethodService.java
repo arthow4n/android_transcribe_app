@@ -33,7 +33,6 @@ import java.util.List;
 
 import com.google.android.material.color.DynamicColors;
 import com.google.android.material.color.MaterialColors;
-import com.google.android.material.button.MaterialButtonToggleGroup;
 
 public class RustInputMethodService extends InputMethodService {
     
@@ -59,11 +58,10 @@ public class RustInputMethodService extends InputMethodService {
     private View backspaceButton;
     private View spaceButton;
     private View enterButton;
-    private View switchKeyboardButton;
+    private TextView languageSwitchButton;
     private View inputView;
     private MicLevelView micLevelView;
     private View recordCircle;
-    private MaterialButtonToggleGroup languageGroup;
     private android.widget.ImageView pasteButton;
     private android.widget.ImageView copyButton;
     private android.widget.ImageView clearClipboardButton;
@@ -186,8 +184,7 @@ public class RustInputMethodService extends InputMethodService {
             View selectAllButton = view.findViewById(R.id.ime_select_all);
             spaceButton = view.findViewById(R.id.ime_space);
             enterButton = view.findViewById(R.id.ime_enter);
-            switchKeyboardButton = view.findViewById(R.id.ime_switch_keyboard);
-            languageGroup = view.findViewById(R.id.ime_language_group);
+            languageSwitchButton = view.findViewById(R.id.ime_language_switch);
 
             pasteButton = view.findViewById(R.id.ime_paste_button);
             copyButton = view.findViewById(R.id.ime_copy_button);
@@ -252,19 +249,17 @@ public class RustInputMethodService extends InputMethodService {
             }
 
             setupModelSpinner();
-            setupLanguageShortcuts();
 
             selectAllButton.setOnClickListener(v -> selectAllText());
 
-            switchKeyboardButton.setOnClickListener(v -> switchLanguageOrKeyboard());
-            switchKeyboardButton.setOnLongClickListener(v -> {
-                InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
-                if (imm != null) {
-                    imm.showInputMethodPicker();
+            if (languageSwitchButton != null) {
+                updateLanguageButtonText();
+                languageSwitchButton.setOnClickListener(v -> cycleLanguage());
+                languageSwitchButton.setOnLongClickListener(v -> {
+                    switchLanguageOrKeyboard();
                     return true;
-                }
-                return false;
-            });
+                });
+            }
 
             // Key repeat runnable for backspace
             backspaceRepeatRunnable = new Runnable() {
@@ -432,6 +427,7 @@ public class RustInputMethodService extends InputMethodService {
         updatePrivacyToggleUI();
         if (!isRecording) {
             refreshModelSpinner();
+            updateLanguageButtonText();
             showLastWpmIfAvailable();
         }
         if (isRecording) {
@@ -619,50 +615,85 @@ public class RustInputMethodService extends InputMethodService {
     private native void cancelRecording();
     private native void setLanguageNative(String language);
 
-    private void setupLanguageShortcuts() {
-        String language = readConfig("model_language");
-        if ("sv-SE".equals(language)) {
-            languageGroup.check(R.id.ime_language_sv);
-        } else if ("zh-TW".equals(language)) {
-            languageGroup.check(R.id.ime_language_zh_tw);
-        } else if ("en-US".equals(language)) {
-            languageGroup.check(R.id.ime_language_en);
+    private static final String[] CYCLE_LANGUAGES = {"sv-SE", "zh-TW", "ja-JP", "en-US"};
+
+    private void cycleLanguage() {
+        if (isRecording || isProcessingStatus()) {
+            return;
         }
-
-        languageGroup.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
-            if (!isChecked) return;
-            final String selected;
-            if (checkedId == R.id.ime_language_sv) {
-                selected = "sv-SE";
-            } else if (checkedId == R.id.ime_language_zh_tw) {
-                selected = "zh-TW";
-            } else if (checkedId == R.id.ime_language_en) {
-                selected = "en-US";
-            } else {
-                return;
+        if (languageSwitchButton != null) {
+            languageSwitchButton.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP);
+        }
+        String current = readConfig("model_language");
+        int currentIndex = -1;
+        for (int i = 0; i < CYCLE_LANGUAGES.length; i++) {
+            if (CYCLE_LANGUAGES[i].equalsIgnoreCase(current)) {
+                currentIndex = i;
+                break;
             }
-            if (selected.equals(readConfig("model_language"))) return;
+        }
+        int nextIndex = (currentIndex + 1) % CYCLE_LANGUAGES.length;
+        String nextLanguage = CYCLE_LANGUAGES[nextIndex];
 
-            Boolean modelChanged = applyLanguageSelection(selected);
-            if (modelChanged == null) return;
-            refreshModelSpinner();
-            if (modelChanged) {
-                lastStatus = "Loading model...";
-                updateUiState();
-                try {
-                    reloadModelNative();
-                } catch (Throwable t) {
-                    Log.e(TAG, "Could not reload keyboard model for language " + selected, t);
-                    onStatusUpdate("Error: could not reload model");
-                }
-            } else {
-                try {
-                    setLanguageNative(selected);
-                } catch (Throwable t) {
-                    Log.e(TAG, "Could not update native keyboard language", t);
-                }
+        Boolean modelChanged = applyLanguageSelection(nextLanguage);
+        if (modelChanged == null) return;
+
+        updateLanguageButtonText();
+        refreshModelSpinner();
+
+        if (modelChanged) {
+            lastStatus = "Loading model...";
+            updateUiState();
+            try {
+                reloadModelNative();
+            } catch (Throwable t) {
+                Log.e(TAG, "Could not reload keyboard model for language " + nextLanguage, t);
+                onStatusUpdate("Error: could not reload model");
             }
-        });
+        } else {
+            try {
+                setLanguageNative(nextLanguage);
+            } catch (Throwable t) {
+                Log.e(TAG, "Could not update native keyboard language", t);
+            }
+        }
+    }
+
+    private void updateLanguageButtonText() {
+        if (languageSwitchButton == null) return;
+        String language = readConfig("model_language");
+        String label = getLanguageDisplayLabel(language);
+        languageSwitchButton.setText(label);
+        String desc = language.isEmpty()
+                ? getString(R.string.models_language_auto)
+                : java.util.Locale.forLanguageTag(language).getDisplayName();
+        languageSwitchButton.setContentDescription(getString(R.string.ime_switch_language_desc, desc));
+    }
+
+    private String getLanguageDisplayLabel(String language) {
+        if (language == null || language.isEmpty()) {
+            return getString(R.string.ime_language_auto);
+        }
+        if ("sv-SE".equalsIgnoreCase(language) || "sv".equalsIgnoreCase(language)) {
+            return getString(R.string.ime_language_sv);
+        }
+        if ("zh-TW".equalsIgnoreCase(language)) {
+            return getString(R.string.ime_language_zh_tw);
+        }
+        if ("ja-JP".equalsIgnoreCase(language) || "ja".equalsIgnoreCase(language)) {
+            return getString(R.string.ime_language_ja);
+        }
+        if ("en-US".equalsIgnoreCase(language) || "en-GB".equalsIgnoreCase(language) || "en".equalsIgnoreCase(language)) {
+            return getString(R.string.ime_language_en);
+        }
+        int dash = language.indexOf('-');
+        if (dash > 0 && dash <= 3) {
+            if (language.length() <= 5) {
+                return language.toUpperCase(java.util.Locale.ROOT);
+            }
+            return language.substring(0, dash).toUpperCase(java.util.Locale.ROOT);
+        }
+        return language.toUpperCase(java.util.Locale.ROOT);
     }
 
     /** Saves the current model for the old language and resolves the new one. */
@@ -792,12 +823,10 @@ public class RustInputMethodService extends InputMethodService {
             recordContainer.setAlpha(disable ? 0.75f : 1.0f);
         }
 
-        if (languageGroup != null) {
+        if (languageSwitchButton != null) {
             boolean disable = isRecording || isTranscribing || isWaiting;
-            for (int i = 0; i < languageGroup.getChildCount(); i++) {
-                languageGroup.getChildAt(i).setEnabled(!disable);
-            }
-            languageGroup.setAlpha(disable ? 0.5f : 1.0f);
+            languageSwitchButton.setEnabled(!disable);
+            languageSwitchButton.setAlpha(disable ? 0.5f : 1.0f);
         }
 
         // Switching models resets the shared native engine, so keep the
@@ -936,9 +965,6 @@ public class RustInputMethodService extends InputMethodService {
         }
         if (recordContainer != null) {
             recordContainer.setVisibility(show ? View.GONE : View.VISIBLE);
-        }
-        if (languageGroup != null) {
-            languageGroup.setVisibility(show ? View.GONE : View.VISIBLE);
         }
         if (historyButton != null) {
             int activeColor = MaterialColors.getColor(historyButton,

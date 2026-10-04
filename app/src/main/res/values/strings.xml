@@ -9,7 +9,11 @@
     <string name="btn_ime_settings">Open Keyboard Settings</string>
     <string name="ime_language_sv">SV-SE</string>
     <string name="ime_language_zh_tw">ZH-TW</string>
+    <string name="ime_language_ja">JA</string>
     <string name="ime_language_en">EN</string>
+    <string name="ime_language_auto">AUTO</string>
+    <string name="ime_switch_language">Switch language</string>
+    <string name="ime_switch_language_desc">Language: %1$s. Tap to cycle, hold to switch keyboard</string>
     <string name="ime_model_format">Model: %1$s</string>
     <string name="ime_model_selector">Select speech model</string>
     <string name="ime_select_all">Select all text</string>

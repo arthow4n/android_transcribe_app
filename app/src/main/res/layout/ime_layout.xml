@@ -315,46 +315,6 @@
         </LinearLayout>
     </FrameLayout>
 
-    <!-- Fast language selection for multilingual dictation. -->
-    <com.google.android.material.button.MaterialButtonToggleGroup
-        android:id="@+id/ime_language_group"
-        android:layout_width="match_parent"
-        android:layout_height="40dp"
-        android:layout_marginTop="4dp"
-        app:selectionRequired="false"
-        app:singleSelection="true">
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/ime_language_sv"
-            style="?attr/materialButtonOutlinedStyle"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:minWidth="0dp"
-            android:paddingHorizontal="4dp"
-            android:text="@string/ime_language_sv" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/ime_language_zh_tw"
-            style="?attr/materialButtonOutlinedStyle"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:minWidth="0dp"
-            android:paddingHorizontal="4dp"
-            android:text="@string/ime_language_zh_tw" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/ime_language_en"
-            style="?attr/materialButtonOutlinedStyle"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:minWidth="0dp"
-            android:paddingHorizontal="4dp"
-            android:text="@string/ime_language_en" />
-    </com.google.android.material.button.MaterialButtonToggleGroup>
-
     <!-- Bottom key row -->
     <LinearLayout
         android:layout_width="match_parent"
@@ -363,18 +323,22 @@
         android:baselineAligned="false"
         android:paddingTop="6dp">
 
-        <ImageView
-            android:id="@+id/ime_switch_keyboard"
-            android:layout_width="48dp"
+        <TextView
+            android:id="@+id/ime_language_switch"
+            android:layout_width="wrap_content"
+            android:minWidth="52dp"
             android:layout_height="42dp"
-            android:src="@drawable/ic_keyboard_switch"
-            android:scaleType="centerInside"
+            android:gravity="center"
+            android:paddingStart="6dp"
+            android:paddingEnd="6dp"
             android:background="@drawable/bg_ime_key"
-            android:tint="?attr/colorOnSurfaceVariant"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textAppearance="?attr/textAppearanceLabelMedium"
+            android:textStyle="bold"
             android:clickable="true"
             android:focusable="true"
             android:layout_marginEnd="8dp"
-            android:contentDescription="Switch keyboard"/>
+            android:contentDescription="@string/ime_switch_language"/>
 
         <ImageView
             android:id="@+id/ime_space"
