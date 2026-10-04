@@ -1280,17 +1280,12 @@ public class RustInputMethodService extends InputMethodService {
     private void displayLastWpm(DictationStatsManager.SessionRecord session) {
         if (lastWpmView == null || session == null) return;
         int speechWpm = Math.round(session.wpm);
-        int totalWpm = Math.round(session.totalWpm);
+        int totalWpm = Math.round(session.totalWpm > 0 ? session.totalWpm : session.wpm);
         String speechTime = formatElapsed(session.durationMs);
-        String totalTime = formatElapsed(session.totalDurationMs);
+        String totalTime = formatElapsed(session.totalDurationMs > 0 ? session.totalDurationMs : session.durationMs);
 
-        if (session.totalDurationMs > session.durationMs && (totalWpm != speechWpm || !speechTime.equals(totalTime))) {
-            lastWpmView.setText(getString(R.string.ime_last_wpm_format,
-                    speechWpm, totalWpm, session.words, speechTime, totalTime));
-        } else {
-            lastWpmView.setText(getString(R.string.ime_last_wpm_format_single,
-                    speechWpm, session.words, speechTime));
-        }
+        lastWpmView.setText(getString(R.string.ime_last_wpm_format,
+                speechWpm, totalWpm, session.words, speechTime, totalTime));
         lastWpmView.setVisibility(View.VISIBLE);
     }
 

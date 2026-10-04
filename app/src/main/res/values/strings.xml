@@ -149,6 +149,7 @@
     <string name="wpm_by_language">By Language</string>
     <string name="wpm_by_model">By Model</string>
     <string name="wpm_group_details">%1$d words · %2$d pastes · %3$s</string>
+    <string name="wpm_group_details_dual">%1$d words · %2$d pastes · %3$s / %4$s</string>
     <string name="wpm_wpm_value">%1$d WPM</string>
     <string name="wpm_dual_wpm_value">%1$d / %2$d WPM</string>
     <string name="wpm_empty">No dictation history yet. Dictate text using the voice keyboard to see your words-per-minute statistics here.</string>
