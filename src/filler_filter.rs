@@ -281,7 +281,8 @@ fn collapse_whitespace(text: &str) -> String {
 }
 
 /// Normalizes spacing around punctuation, removes duplicate commas/periods,
-/// strips orphaned leading/trailing punctuation, and restores sentence capitalization.
+/// strips orphaned leading/trailing punctuation, ensures proper spacing after
+/// punctuation, and restores sentence capitalization.
 pub fn clean_punctuation_and_whitespace(text: &str) -> String {
     if text.is_empty() {
         return String::new();
@@ -313,67 +314,75 @@ pub fn clean_punctuation_and_whitespace(text: &str) -> String {
         i += 1;
     }
 
-    // 2. Collapse duplicate/mixed punctuation
-    // e.g. ",," -> ",", ", ." -> ".", ".," -> "."
+    // 2. Collapse duplicate/mixed punctuation clusters
+    // e.g. ",," -> ",", ", ." -> ".", ".," -> ".", ".." -> ".", "..." -> "..."
     let mut collapsed = String::with_capacity(s.len());
     let chars: Vec<char> = s.chars().collect();
     let mut i = 0;
     while i < chars.len() {
         let c = chars[i];
-        if is_comma_like(c) {
-            // Look ahead for subsequent commas or sentence terminators
-            let mut j = i + 1;
-            let mut found_terminator = None;
+
+        if is_trailing_punctuation(c) {
+            // Scan the entire cluster of punctuation (and internal whitespace)
+            let mut j = i;
+            let mut dot_count = 0;
+            let mut has_other_punct = false;
+            let mut run_puncts = Vec::new();
+
             while j < chars.len() {
                 let next = chars[j];
                 if next.is_whitespace() {
-                    j += 1;
-                } else if is_comma_like(next) {
-                    j += 1;
-                } else if is_sentence_terminator(next) {
-                    found_terminator = Some(next);
-                    j += 1;
-                    break;
-                } else {
-                    break;
-                }
-            }
-            if let Some(term) = found_terminator {
-                collapsed.push(term);
-            } else {
-                collapsed.push(c);
-            }
-            i = j;
-            continue;
-        } else if is_sentence_terminator(c) {
-            // Look ahead for subsequent duplicate terminators or commas
-            let mut j = i + 1;
-            while j < chars.len() {
-                let next = chars[j];
-                if next.is_whitespace() {
-                    // Don't skip whitespace after a terminator unless followed by another punctuation
                     let mut k = j;
                     while k < chars.len() && chars[k].is_whitespace() {
                         k += 1;
                     }
-                    if k < chars.len() && (is_comma_like(chars[k]) || (chars[k] == c && c != '.')) {
-                        j = k + 1;
+                    if k < chars.len() && is_trailing_punctuation(chars[k]) {
+                        j = k;
+                        continue;
                     } else {
+                        // Whitespace is trailing the punctuation cluster; do not consume
                         break;
                     }
-                } else if is_comma_like(next) {
-                    j += 1;
-                } else if next == c && c != '.' {
-                    // Collapse duplicate '!' or '?' to single
+                } else if is_trailing_punctuation(next) {
+                    if next == '.' {
+                        dot_count += 1;
+                    } else {
+                        has_other_punct = true;
+                    }
+                    run_puncts.push(next);
                     j += 1;
                 } else {
                     break;
                 }
             }
-            collapsed.push(c);
+
+            if dot_count >= 3 && !has_other_punct {
+                // Pure ellipsis: "..."
+                collapsed.push_str("...");
+            } else if dot_count >= 3 && has_other_punct {
+                // Ellipsis mixed with commas/other (e.g. "... ," or ", ..."): ellipsis wins
+                collapsed.push_str("...");
+            } else if run_puncts.len() == 1 {
+                collapsed.push(c);
+            } else {
+                // Mixed or duplicate punctuation: choose single winner
+                let chosen = if let Some(&term) = run_puncts.iter().find(|&&p| p == '?' || p == '？') {
+                    term
+                } else if let Some(&term) = run_puncts.iter().find(|&&p| p == '!' || p == '！') {
+                    term
+                } else if let Some(&term) = run_puncts.iter().find(|&&p| p == '.' || p == '。') {
+                    term
+                } else if let Some(&comma) = run_puncts.iter().find(|&&p| is_comma_like(p)) {
+                    comma
+                } else {
+                    c
+                };
+                collapsed.push(chosen);
+            }
             i = j;
             continue;
         }
+
         collapsed.push(c);
         i += 1;
     }
@@ -381,7 +390,7 @@ pub fn clean_punctuation_and_whitespace(text: &str) -> String {
     // 3. Trim leading punctuation that shouldn't begin a sentence (e.g. leading commas/colons)
     let mut trimmed_start = collapsed.as_str();
     while let Some(first) = trimmed_start.chars().next() {
-        if first.is_whitespace() || is_comma_like(first) || first == ':' || first == ';' {
+        if first.is_whitespace() || is_comma_like(first) || first == ':' {
             trimmed_start = &trimmed_start[first.len_utf8()..];
         } else {
             break;
@@ -391,7 +400,7 @@ pub fn clean_punctuation_and_whitespace(text: &str) -> String {
     // 4. Trim trailing orphaned commas or pause punctuation
     let mut trimmed_end = trimmed_start;
     while let Some(last) = trimmed_end.chars().last() {
-        if last.is_whitespace() || is_comma_like(last) || last == ':' || last == ';' {
+        if last.is_whitespace() || is_comma_like(last) || last == ':' {
             let last_len = last.len_utf8();
             trimmed_end = &trimmed_end[..trimmed_end.len() - last_len];
         } else {
@@ -399,11 +408,48 @@ pub fn clean_punctuation_and_whitespace(text: &str) -> String {
         }
     }
 
-    // 5. Collapse internal whitespace
-    let normalized_space = collapse_whitespace(trimmed_end);
+    // 5. Ensure space after ASCII punctuation when followed by words/letters/quotes,
+    // keeping numbers like "3.14" or "1,000" intact.
+    let mut spaced = String::with_capacity(trimmed_end.len() + 16);
+    let chars: Vec<char> = trimmed_end.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        let c = chars[i];
+        spaced.push(c);
 
-    // 6. Sentence capitalization
+        if is_ascii_punctuation(c) {
+            // In an ellipsis "...", only the final dot can have a following space
+            let is_internal_ellipsis_dot = c == '.' && i + 1 < chars.len() && chars[i + 1] == '.';
+
+            if !is_internal_ellipsis_dot && i + 1 < chars.len() {
+                let next = chars[i + 1];
+
+                // Number exception: digit before and digit after (e.g. 3.14, 1,000, 10:30)
+                let is_number = (c == '.' || c == ',' || c == ':')
+                    && i > 0
+                    && chars[i - 1].is_ascii_digit()
+                    && next.is_ascii_digit();
+
+                // Closing quote/bracket exception: e.g. ," or .)
+                let is_closing_bracket = matches!(next, ')' | ']' | '}' | '”' | '’');
+
+                if !is_number && !is_closing_bracket && !next.is_whitespace() && !is_cjk_char(next) {
+                    spaced.push(' ');
+                }
+            }
+        }
+        i += 1;
+    }
+
+    // 6. Collapse internal whitespace
+    let normalized_space = collapse_whitespace(&spaced);
+
+    // 7. Sentence capitalization
     recapitalize_sentences(&normalized_space)
+}
+
+fn is_ascii_punctuation(c: char) -> bool {
+    matches!(c, ',' | '.' | '!' | '?' | ';' | ':')
 }
 
 fn is_trailing_punctuation(c: char) -> bool {
@@ -475,7 +521,7 @@ mod tests {
         // English filler in the middle
         assert_eq!(
             filter.filter("I think, um, that this is, like, totally cool."),
-            "I think, that this is cool."
+            "I think, that this is, cool."
         );
 
         // English filler at the end with period
@@ -488,6 +534,48 @@ mod tests {
         assert_eq!(
             filter.filter("It was, you know, quite interesting."),
             "It was, quite interesting."
+        );
+
+        // Punctuation and spacing regression tests
+        assert_eq!(
+            filter.filter("story, uh, and then"),
+            "Story, and then"
+        );
+        assert_eq!(
+            filter.filter("story, uh, another word"),
+            "Story, another word"
+        );
+        assert_eq!(
+            filter.filter("story, uh. Another word"),
+            "Story. Another word"
+        );
+        assert_eq!(
+            filter.filter("story. Uh, another word"),
+            "Story. Another word"
+        );
+        assert_eq!(
+            filter.filter("story, uh another word"),
+            "Story, another word"
+        );
+        assert_eq!(
+            filter.filter("story. Uh another word"),
+            "Story. Another word"
+        );
+        assert_eq!(
+            filter.filter("Wait... uh, what?"),
+            "Wait... What?"
+        );
+        assert_eq!(
+            filter.filter("Hello,world"),
+            "Hello, world"
+        );
+        assert_eq!(
+            filter.filter("Hello.world"),
+            "Hello. World"
+        );
+        assert_eq!(
+            filter.filter("The price is 3.14 dollars and 1,000 people."),
+            "The price is 3.14 dollars and 1,000 people."
         );
 
         // Word boundary safety (should not match inside "much" or "unhappy")
