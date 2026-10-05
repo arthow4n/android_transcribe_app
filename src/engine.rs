@@ -219,17 +219,30 @@ impl Engine {
                 transcribe_cpp::sys::TRANSCRIBE_EXT_KIND_PARAKEET_STREAM,
             );
 
+        // Native streaming is strictly gated to Nemotron models.
+        // Non-streaming models (SenseVoice, Whisper, etc.) always run in Legacy mode.
+        let effective_streaming_mode = if is_nemotron_streaming {
+            streaming_mode
+        } else {
+            StreamingMode::Legacy
+        };
+
         let (streaming_supported, streaming_ext) = if capabilities.supports_streaming {
             if is_nemotron_streaming {
-                let right_att = streaming_mode.right_attention();
-                (
-                    true,
-                    Some(transcribe_cpp::StreamExtension::ParakeetStream(
-                        transcribe_cpp::ParakeetStreamOptions {
-                            att_context_right: right_att,
-                        },
-                    )),
-                )
+                if effective_streaming_mode.is_native() {
+                    let right_att = effective_streaming_mode.right_attention();
+                    (
+                        true,
+                        Some(transcribe_cpp::StreamExtension::ParakeetStream(
+                            transcribe_cpp::ParakeetStreamOptions {
+                                att_context_right: right_att,
+                            },
+                        )),
+                    )
+                } else {
+                    // Legacy mode explicitly requested for Nemotron: do not configure streaming extension
+                    (false, None)
+                }
             } else if model.accepts_ext(
                 transcribe_cpp::ExtSlot::Stream,
                 transcribe_cpp::sys::TRANSCRIBE_EXT_KIND_PARAKEET_BUFFERED_STREAM,
@@ -273,7 +286,7 @@ impl Engine {
             task,
             streaming_supported,
             is_nemotron_streaming,
-            streaming_mode
+            effective_streaming_mode
         );
         let options = transcribe_cpp::SessionOptions {
             n_threads: threads,
@@ -295,7 +308,7 @@ impl Engine {
             ready_status,
             streaming_supported,
             is_nemotron_streaming,
-            streaming_mode,
+            streaming_mode: effective_streaming_mode,
             streaming_ext,
             streaming_languages: capabilities.languages,
         })
@@ -851,20 +864,27 @@ fn do_load(env: &mut JNIEnv, context: &JObject) -> Result<(), String> {
 }
 
 /// Inspects whether a model file accepts Nemotron cache-aware streaming.
+/// Performs a static inspection without loading model weights into memory.
 pub fn check_model_is_nemotron(model_path: &Path) -> bool {
     if !model_path.is_file() {
         return false;
     }
-    match transcribe_cpp::Model::load(model_path) {
-        Ok(m) => {
-            m.capabilities().supports_streaming
-                && m.accepts_ext(
-                    transcribe_cpp::ExtSlot::Stream,
-                    transcribe_cpp::sys::TRANSCRIBE_EXT_KIND_PARAKEET_STREAM,
-                )
-        }
-        Err(_) => false,
+    let filename = match model_path.file_name().and_then(|s| s.to_str()) {
+        Some(f) => f.to_ascii_lowercase(),
+        None => return false,
+    };
+    if !filename.contains("nemotron") {
+        return false;
     }
+    // Verify it is a valid GGUF file
+    use std::io::Read;
+    if let Ok(mut file) = std::fs::File::open(model_path) {
+        let mut header = [0u8; 4];
+        if let Ok(4) = file.read(&mut header) {
+            return &header == b"GGUF";
+        }
+    }
+    false
 }
 
 #[cfg(test)]
@@ -924,5 +944,16 @@ mod tests {
         assert!(StreamingMode::LowLatency.is_native());
         assert!(StreamingMode::Balanced.is_native());
         assert!(StreamingMode::Accuracy.is_native());
+    }
+
+    #[test]
+    fn check_model_is_nemotron_non_nemotron() {
+        use super::check_model_is_nemotron;
+        use std::path::Path;
+
+        assert!(!check_model_is_nemotron(Path::new("SenseVoiceSmall-Q8_0.gguf")));
+        assert!(!check_model_is_nemotron(Path::new("whisper-small-Q8_0.gguf")));
+        assert!(!check_model_is_nemotron(Path::new("parakeet-tdt_ctc-110m-Q8_0.gguf")));
+        assert!(!check_model_is_nemotron(Path::new("")));
     }
 }

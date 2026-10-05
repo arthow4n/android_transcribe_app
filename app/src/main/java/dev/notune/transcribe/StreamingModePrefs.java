@@ -167,6 +167,7 @@ public final class StreamingModePrefs {
 
     /**
      * Returns true if the model is known to support Nemotron cache-aware streaming.
+     * Uses a fast static check to avoid loading model weights into memory.
      */
     public static boolean isStreamingCapableModel(Context context, String modelFileName) {
         if (modelFileName == null || modelFileName.trim().isEmpty()) {
@@ -174,6 +175,13 @@ public final class StreamingModePrefs {
             return false;
         }
         String trimmed = modelFileName.trim();
+        String lower = trimmed.toLowerCase(Locale.ROOT);
+        // Fast static gate: only Nemotron models support native streaming in transcribe-cpp.
+        // Non-Nemotron models (SenseVoice, Whisper, Parakeet TDT, etc.) are strictly not streaming.
+        if (!lower.contains("nemotron")) {
+            return false;
+        }
+
         Boolean cached = CAPABILITY_CACHE.get(trimmed);
         if (cached != null) {
             return cached;
@@ -189,7 +197,7 @@ public final class StreamingModePrefs {
             capable = ModelsActivity.isStreamingCapableNative(file.getAbsolutePath());
         } catch (UnsatisfiedLinkError | Exception e) {
             Log.w(TAG, "Native streaming check failed, falling back to name heuristic", e);
-            capable = trimmed.toLowerCase(Locale.ROOT).contains("nemotron");
+            capable = true;
         }
 
         CAPABILITY_CACHE.put(trimmed, capable);

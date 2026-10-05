@@ -324,8 +324,11 @@ public class ModelsActivity extends AppCompatActivity {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 if (isUpdatingStreamingSpinner) return;
-                String selectedMode = StreamingModePrefs.MODES[position];
                 String active = readConfig("active_model");
+                if (!StreamingModePrefs.isStreamingCapableModel(ModelsActivity.this, active)) {
+                    return;
+                }
+                String selectedMode = StreamingModePrefs.MODES[position];
                 String currentMode = StreamingModePrefs.getModeForModel(ModelsActivity.this, active);
                 if (selectedMode.equals(currentMode)) return;
 
@@ -681,7 +684,9 @@ public class ModelsActivity extends AppCompatActivity {
     public void onStatusUpdate(String status) {
         runOnUiThread(() -> {
             statusText.setText(status);
-            updateStreamingModeUi(readConfig("active_model"));
+            if (status != null && status.startsWith("Ready")) {
+                updateStreamingModeUi(readConfig("active_model"));
+            }
         });
     }
 
