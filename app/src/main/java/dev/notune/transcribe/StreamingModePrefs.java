@@ -50,6 +50,26 @@ public final class StreamingModePrefs {
             R.string.models_streaming_mode_accuracy,
     };
 
+    /**
+     * Returns a short nominal latency label (e.g. "80ms", "320ms", "560ms", "1.1s")
+     * for native streaming modes, or null for legacy mode.
+     */
+    public static String getNominalLatencyLabel(String mode) {
+        if (mode == null) return null;
+        switch (mode) {
+            case MODE_ULTRA_FAST:
+                return "80ms";
+            case MODE_LOW_LATENCY:
+                return "320ms";
+            case MODE_BALANCED:
+                return "560ms";
+            case MODE_ACCURACY:
+                return "1.1s";
+            default:
+                return null;
+        }
+    }
+
     private static final String DIRECTORY = "model_streaming_modes";
     private static final String ACTIVE_CONFIG_FILE = "model_streaming_mode";
 

@@ -34,6 +34,14 @@ import java.util.List;
 
 import com.google.android.material.color.DynamicColors;
 import com.google.android.material.color.MaterialColors;
+import android.graphics.Canvas;
+import android.graphics.Paint;
+import android.graphics.drawable.Drawable;
+import android.text.SpannableString;
+import android.text.Spanned;
+import android.text.style.ImageSpan;
+import androidx.annotation.NonNull;
+import androidx.core.content.ContextCompat;
 
 public class RustInputMethodService extends InputMethodService {
     
@@ -1524,9 +1532,52 @@ public class RustInputMethodService extends InputMethodService {
                 : (isRecording ? elapsedMs : lastRecordingDurationMs);
         long delayMs = Math.max(0L, totalMs - processedAudioMs);
 
-        statsView.setText(getString(R.string.ime_stats_format, formatElapsed(elapsedMs),
+        String baseStats = getString(R.string.ime_stats_format, formatElapsed(elapsedMs),
                 processedWords, formatSpeed(currentRateFresh ? currentProcessingSpeed : -1f),
-                formatSpeed(averageProcessingSpeed), formatDelay(delayMs)));
+                formatSpeed(averageProcessingSpeed), formatDelay(delayMs));
+
+        String activeModel = readConfig("active_model");
+        boolean isStreaming = StreamingModePrefs.isStreamingCapableModel(this, activeModel);
+        String streamingMode = isStreaming ? StreamingModePrefs.getActiveMode(this) : StreamingModePrefs.MODE_LEGACY;
+        String latencyLabel = isStreaming ? StreamingModePrefs.getNominalLatencyLabel(streamingMode) : null;
+
+        if (latencyLabel != null) {
+            String fullText = baseStats + " ·   " + latencyLabel;
+            SpannableString spannable = new SpannableString(fullText);
+            Drawable bolt = ContextCompat.getDrawable(this, R.drawable.ic_bolt);
+            if (bolt != null) {
+                bolt = bolt.mutate();
+                int textColor = statsView.getCurrentTextColor();
+                bolt.setTint(textColor);
+                Paint.FontMetricsInt fm = statsView.getPaint().getFontMetricsInt();
+                int fontHeight = Math.abs(fm.descent - fm.ascent);
+                int iconSize = Math.max(1, (int) (fontHeight * 0.85f));
+                bolt.setBounds(0, 0, iconSize, iconSize);
+                int iconPos = baseStats.length() + 3;
+                spannable.setSpan(new CenteredImageSpan(bolt), iconPos, iconPos + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            }
+            statsView.setText(spannable);
+        } else {
+            statsView.setText(baseStats);
+        }
+    }
+
+    private static class CenteredImageSpan extends ImageSpan {
+        CenteredImageSpan(@NonNull Drawable drawable) {
+            super(drawable);
+        }
+
+        @Override
+        public void draw(@NonNull Canvas canvas, CharSequence text, int start, int end,
+                         float x, int top, int y, int bottom, @NonNull Paint paint) {
+            Drawable b = getDrawable();
+            canvas.save();
+            Paint.FontMetricsInt fm = paint.getFontMetricsInt();
+            int transY = y + fm.ascent + (fm.descent - fm.ascent - b.getBounds().bottom) / 2;
+            canvas.translate(x, transY);
+            b.draw(canvas);
+            canvas.restore();
+        }
     }
 
     static int calculateCatchUpPercent(long processedAudioMs, long totalAudioMs,
