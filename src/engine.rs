@@ -39,6 +39,79 @@ const MODEL_TRANSLATE_FILE: &str = "model_translate";
 /// Optional file in filesDir with the CPU thread count for inference.
 /// Absent/invalid/0 = default (all cores).
 const MODEL_THREADS_FILE: &str = "model_threads";
+/// File in filesDir with the configured streaming mode ("legacy", "ultra_fast",
+/// "low_latency", "balanced", "accuracy"). Absent or empty = legacy.
+const MODEL_STREAMING_MODE_FILE: &str = "model_streaming_mode";
+
+/// Configurable streaming mode for models with cache-aware native streaming
+/// (e.g. Nemotron 3.5 ASR Streaming 0.6B).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum StreamingMode {
+    /// Preserves the application's existing transcription implementation (Path A).
+    #[default]
+    Legacy,
+    /// Native streaming with 0-frame right-context lookahead (~80 ms nominal chunk).
+    UltraFast,
+    /// Native streaming with 3-frame right-context lookahead (~320 ms nominal chunk).
+    LowLatency,
+    /// Native streaming with 6-frame right-context lookahead (~560 ms nominal chunk).
+    Balanced,
+    /// Native streaming with 13-frame right-context lookahead (~1,120 ms nominal chunk).
+    Accuracy,
+}
+
+impl StreamingMode {
+    pub fn from_str(s: &str) -> Self {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "ultra_fast" | "ultrafast" | "0" => StreamingMode::UltraFast,
+            "low_latency" | "lowlatency" | "3" => StreamingMode::LowLatency,
+            "balanced" | "6" => StreamingMode::Balanced,
+            "accuracy" | "accuracy_priority" | "13" => StreamingMode::Accuracy,
+            _ => StreamingMode::Legacy,
+        }
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            StreamingMode::Legacy => "legacy",
+            StreamingMode::UltraFast => "ultra_fast",
+            StreamingMode::LowLatency => "low_latency",
+            StreamingMode::Balanced => "balanced",
+            StreamingMode::Accuracy => "accuracy",
+        }
+    }
+
+    /// Right-context attention window in encoder frames.
+    pub fn right_attention(&self) -> Option<i32> {
+        match self {
+            StreamingMode::Legacy => None,
+            StreamingMode::UltraFast => Some(0),
+            StreamingMode::LowLatency => Some(3),
+            StreamingMode::Balanced => Some(6),
+            StreamingMode::Accuracy => Some(13),
+        }
+    }
+
+    /// Nominal chunk duration in milliseconds.
+    pub fn nominal_chunk_ms(&self) -> Option<usize> {
+        match self {
+            StreamingMode::Legacy => None,
+            StreamingMode::UltraFast => Some(80),
+            StreamingMode::LowLatency => Some(320),
+            StreamingMode::Balanced => Some(560),
+            StreamingMode::Accuracy => Some(1120),
+        }
+    }
+
+    /// Nominal chunk duration in 16 kHz mono f32 samples.
+    pub fn nominal_chunk_samples(&self) -> Option<usize> {
+        self.nominal_chunk_ms().map(|ms| ms * 16)
+    }
+
+    pub fn is_native(&self) -> bool {
+        *self != StreamingMode::Legacy
+    }
+}
 
 /// Longest audio passed to the model in one run (60 s). Offline conformer
 /// models use full self-attention, whose cost grows quadratically with input
@@ -58,14 +131,28 @@ pub struct Engine {
     /// Family-specific decode options attached to every run; `None` for
     /// models that don't take the whisper run extension.
     run_ext: Option<transcribe_cpp::RunExtension>,
-    chinese_converter: ChineseConverter,
-    filler_filter: FillerFilter,
+    post_processor: Arc<Mutex<TextPostProcessor>>,
     /// Status reported once loading succeeded; carries a warning when the
     /// translate setting can't do what the user expects with this model.
     ready_status: &'static str,
     streaming_supported: bool,
+    is_nemotron_streaming: bool,
+    streaming_mode: StreamingMode,
     streaming_ext: Option<transcribe_cpp::StreamExtension>,
     streaming_languages: Vec<String>,
+}
+
+pub struct TextPostProcessor {
+    chinese_converter: ChineseConverter,
+    filler_filter: FillerFilter,
+}
+
+impl TextPostProcessor {
+    pub fn convert_text(&mut self, text: &str) -> String {
+        self.filler_filter.reload_if_changed();
+        let s = self.chinese_converter.convert(text);
+        self.filler_filter.filter(&s)
+    }
 }
 
 impl Engine {
@@ -77,6 +164,7 @@ impl Engine {
         threads: i32,
         chinese_output: ChineseOutput,
         filler_filter: FillerFilter,
+        streaming_mode: StreamingMode,
     ) -> Result<Engine, String> {
         if !model_path.is_file() {
             return Err(format!("model file not found: {}", model_path.display()));
@@ -125,15 +213,21 @@ impl Engine {
             None
         };
         let capabilities = model.capabilities();
-        let (streaming_supported, streaming_ext) = if capabilities.supports_streaming {
-            if model.accepts_ext(
+        let is_nemotron_streaming = capabilities.supports_streaming
+            && model.accepts_ext(
                 transcribe_cpp::ExtSlot::Stream,
                 transcribe_cpp::sys::TRANSCRIBE_EXT_KIND_PARAKEET_STREAM,
-            ) {
+            );
+
+        let (streaming_supported, streaming_ext) = if capabilities.supports_streaming {
+            if is_nemotron_streaming {
+                let right_att = streaming_mode.right_attention();
                 (
                     true,
                     Some(transcribe_cpp::StreamExtension::ParakeetStream(
-                        transcribe_cpp::ParakeetStreamOptions::default(),
+                        transcribe_cpp::ParakeetStreamOptions {
+                            att_context_right: right_att,
+                        },
                     )),
                 )
             } else if model.accepts_ext(
@@ -174,10 +268,12 @@ impl Engine {
         };
 
         log::info!(
-            "engine: {} threads, task {:?}, single-pass decode: {}",
+            "engine: {} threads, task {:?}, streaming_supported: {}, is_nemotron: {}, mode: {:?}",
             threads,
             task,
-            run_ext.is_some()
+            streaming_supported,
+            is_nemotron_streaming,
+            streaming_mode
         );
         let options = transcribe_cpp::SessionOptions {
             n_threads: threads,
@@ -185,16 +281,21 @@ impl Engine {
         };
         let session = model.session_with(&options).map_err(|e| e.to_string())?;
         let chinese_converter = ChineseConverter::new(chinese_output)?;
+        let post_processor = Arc::new(Mutex::new(TextPostProcessor {
+            chinese_converter,
+            filler_filter,
+        }));
         Ok(Engine {
             session,
             language,
             language_strict,
             task,
             run_ext,
-            chinese_converter,
-            filler_filter,
+            post_processor,
             ready_status,
             streaming_supported,
+            is_nemotron_streaming,
+            streaming_mode,
             streaming_ext,
             streaming_languages: capabilities.languages,
         })
@@ -204,14 +305,32 @@ impl Engine {
         self.streaming_supported
     }
 
+    pub fn streaming_mode(&self) -> StreamingMode {
+        self.streaming_mode
+    }
+
+    pub fn is_nemotron_streaming(&self) -> bool {
+        self.is_nemotron_streaming
+    }
+
+    /// True only when the model is cache-aware streaming capable (Nemotron) AND
+    /// the user configured a native streaming mode (not legacy).
+    pub fn is_native_streaming_enabled(&self) -> bool {
+        self.is_nemotron_streaming && self.streaming_mode.is_native()
+    }
+
+    pub fn post_processor(&self) -> Arc<Mutex<TextPostProcessor>> {
+        self.post_processor.clone()
+    }
+
     /// Begin the model-specific streaming path. The returned stream must remain
     /// on the same worker that owns this Engine borrow.
     pub fn begin_streaming(&mut self) -> Result<transcribe_cpp::Stream<'_>, String> {
         if !self.streaming_supported {
-            return Err("this model does not support keyboard streaming".into());
+            return Err("this model does not support native streaming".into());
         }
         let stream = transcribe_cpp::StreamOptions {
-            commit_policy: transcribe_cpp::CommitPolicy::OnFinalize,
+            commit_policy: transcribe_cpp::CommitPolicy::Auto,
             stable_prefix_agreement_n: 0,
             family: self.streaming_ext.clone(),
         };
@@ -241,10 +360,11 @@ impl Engine {
             .map_err(|e| e.to_string())
     }
 
-    pub fn convert_text(&mut self, text: &str) -> String {
-        self.filler_filter.reload_if_changed();
-        let s = self.chinese_converter.convert(text);
-        self.filler_filter.filter(&s)
+    pub fn convert_text(&self, text: &str) -> String {
+        self.post_processor
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .convert_text(text)
     }
 
     /// Transcribes 16 kHz mono f32 samples to text. Input longer than
@@ -638,6 +758,10 @@ fn do_load(env: &mut JNIEnv, context: &JObject) -> Result<(), String> {
         .and_then(|s| s.parse::<i32>().ok())
         .filter(|&n| n > 0)
         .unwrap_or_else(performance_core_count);
+    let streaming_mode = read_config(&files_dir.join(MODEL_STREAMING_MODE_FILE))
+        .as_deref()
+        .map(StreamingMode::from_str)
+        .unwrap_or(StreamingMode::Legacy);
 
     let active_model_name = read_config(&files_dir.join(ACTIVE_MODEL_FILE))
         .filter(|s| !s.trim().is_empty());
@@ -655,6 +779,7 @@ fn do_load(env: &mut JNIEnv, context: &JObject) -> Result<(), String> {
             threads,
             chinese_output,
             filler_filter,
+            streaming_mode,
         ) {
             Ok(engine) => {
                 let status = engine.ready_status;
@@ -706,6 +831,7 @@ fn do_load(env: &mut JNIEnv, context: &JObject) -> Result<(), String> {
         threads,
         chinese_output,
         filler_filter,
+        streaming_mode,
     ) {
         Ok(engine) => {
             let status = engine.ready_status;
@@ -724,9 +850,26 @@ fn do_load(env: &mut JNIEnv, context: &JObject) -> Result<(), String> {
     }
 }
 
+/// Inspects whether a model file accepts Nemotron cache-aware streaming.
+pub fn check_model_is_nemotron(model_path: &Path) -> bool {
+    if !model_path.is_file() {
+        return false;
+    }
+    match transcribe_cpp::Model::load(model_path) {
+        Ok(m) => {
+            m.capabilities().supports_streaming
+                && m.accepts_ext(
+                    transcribe_cpp::ExtSlot::Stream,
+                    transcribe_cpp::sys::TRANSCRIBE_EXT_KIND_PARAKEET_STREAM,
+                )
+        }
+        Err(_) => false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::next_language_after_rejection;
+    use super::{next_language_after_rejection, StreamingMode};
 
     #[test]
     fn locale_retries_as_primary_language_in_strict_mode() {
@@ -746,5 +889,40 @@ mod tests {
     #[test]
     fn relaxed_mode_preserves_automatic_detection_fallback() {
         assert_eq!(next_language_after_rejection("sv", false).unwrap(), None);
+    }
+
+    #[test]
+    fn streaming_mode_parsing_and_mapping() {
+        assert_eq!(StreamingMode::from_str("legacy"), StreamingMode::Legacy);
+        assert_eq!(StreamingMode::from_str(""), StreamingMode::Legacy);
+        assert_eq!(StreamingMode::from_str("unknown"), StreamingMode::Legacy);
+        assert_eq!(StreamingMode::from_str("ultra_fast"), StreamingMode::UltraFast);
+        assert_eq!(StreamingMode::from_str("low_latency"), StreamingMode::LowLatency);
+        assert_eq!(StreamingMode::from_str("balanced"), StreamingMode::Balanced);
+        assert_eq!(StreamingMode::from_str("accuracy"), StreamingMode::Accuracy);
+
+        assert_eq!(StreamingMode::Legacy.right_attention(), None);
+        assert_eq!(StreamingMode::UltraFast.right_attention(), Some(0));
+        assert_eq!(StreamingMode::LowLatency.right_attention(), Some(3));
+        assert_eq!(StreamingMode::Balanced.right_attention(), Some(6));
+        assert_eq!(StreamingMode::Accuracy.right_attention(), Some(13));
+
+        assert_eq!(StreamingMode::Legacy.nominal_chunk_ms(), None);
+        assert_eq!(StreamingMode::UltraFast.nominal_chunk_ms(), Some(80));
+        assert_eq!(StreamingMode::LowLatency.nominal_chunk_ms(), Some(320));
+        assert_eq!(StreamingMode::Balanced.nominal_chunk_ms(), Some(560));
+        assert_eq!(StreamingMode::Accuracy.nominal_chunk_ms(), Some(1120));
+
+        assert_eq!(StreamingMode::Legacy.nominal_chunk_samples(), None);
+        assert_eq!(StreamingMode::UltraFast.nominal_chunk_samples(), Some(1280));
+        assert_eq!(StreamingMode::LowLatency.nominal_chunk_samples(), Some(5120));
+        assert_eq!(StreamingMode::Balanced.nominal_chunk_samples(), Some(8960));
+        assert_eq!(StreamingMode::Accuracy.nominal_chunk_samples(), Some(17920));
+
+        assert!(!StreamingMode::Legacy.is_native());
+        assert!(StreamingMode::UltraFast.is_native());
+        assert!(StreamingMode::LowLatency.is_native());
+        assert!(StreamingMode::Balanced.is_native());
+        assert!(StreamingMode::Accuracy.is_native());
     }
 }

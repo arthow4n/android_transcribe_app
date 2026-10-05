@@ -374,7 +374,24 @@ fn finalize(shared: Arc<Endpoint>, stream: Arc<Mutex<Option<SendStream>>>) {
 
     match engine::get_engine() {
         Some(eng_arc) => {
-            let res = engine::transcribe_shared(&eng_arc, buffer);
+            let is_native = eng_arc.lock().unwrap_or_else(|e| e.into_inner()).is_native_streaming_enabled();
+            let res = if is_native {
+                let mut eng = eng_arc.lock().unwrap_or_else(|e| e.into_inner());
+                (|| -> Result<String, String> {
+                    let nominal_chunk = eng.streaming_mode().nominal_chunk_samples().unwrap_or(1280);
+                    let mut stream = eng.begin_streaming()?;
+                    for chunk in buffer.chunks(nominal_chunk) {
+                        stream.feed(chunk).map_err(|e| e.to_string())?;
+                    }
+                    stream.finalize().map_err(|e| e.to_string())?;
+                    let snapshot = stream.text();
+                    let display = snapshot.display();
+                    drop(stream);
+                    Ok(eng.convert_text(&display))
+                })()
+            } else {
+                engine::transcribe_shared(&eng_arc, buffer)
+            };
             match res {
                 Ok(text) if !text.trim().is_empty() => call_results(&mut env, target, &text),
                 Ok(_) => call_error(&mut env, target, ERROR_NO_MATCH),

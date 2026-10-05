@@ -134,22 +134,46 @@ pub fn start_recording_mode(
 
     state.audio_buffer.lock().unwrap().clear();
     let buffer_clone = state.audio_buffer.clone();
-    let streaming_control = if streaming_requested {
-        engine::get_engine().and_then(|engine| {
-            let supports = engine
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
-                .supports_streaming();
-            if supports {
-                Some(streaming_dictation::start(
-                    engine,
-                    state.jvm.clone(),
-                    state.target_ref.clone(),
-                ))
-            } else {
+
+    let is_native_streaming = match engine::get_engine() {
+        Some(eng) => {
+            let guard = eng.lock().unwrap_or_else(|e| e.into_inner());
+            guard.is_native_streaming_enabled()
+        }
+        None => false,
+    };
+
+    let use_streaming = is_native_streaming || streaming_requested;
+
+    let streaming_control = if use_streaming {
+        match engine::get_engine() {
+            Some(eng) => {
+                match streaming_dictation::start(eng, state.jvm.clone(), state.target_ref.clone()) {
+                    Ok(ctrl) => Some(ctrl),
+                    Err(e) => {
+                        log::error!("Failed to start streaming session: {}", e);
+                        notify_status(
+                            &mut env,
+                            state.target_ref.as_obj(),
+                            &format!("Error: {}", e),
+                        );
+                        return;
+                    }
+                }
+            }
+            None => {
+                // If streaming was explicitly requested on a loaded engine, report error.
+                if is_native_streaming {
+                    notify_status(
+                        &mut env,
+                        state.target_ref.as_obj(),
+                        "Error: model not loaded",
+                    );
+                    return;
+                }
                 None
             }
-        })
+        }
     } else {
         None
     };

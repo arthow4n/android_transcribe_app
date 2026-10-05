@@ -110,6 +110,15 @@
     <string name="models_translate">Translate to English</string>
     <string name="models_translate_desc">For models that support it (e.g. Whisper): speech in any language becomes English text, including in live subtitles. Ignored by other models.</string>
     <string name="btn_models">Manage speech models</string>
+    <string name="models_streaming_mode_section">Streaming mode</string>
+    <string name="models_streaming_mode_desc">Controls latency and nominal chunk duration for Nemotron cache-aware streaming. Non-streaming models use the existing implementation.</string>
+    <string name="models_streaming_mode_legacy">Existing implementation (legacy)</string>
+    <string name="models_streaming_mode_ultra_fast">Native streaming — Ultra-fast (80 ms)</string>
+    <string name="models_streaming_mode_low_latency">Native streaming — Low latency (320 ms)</string>
+    <string name="models_streaming_mode_balanced">Native streaming — Balanced (560 ms)</string>
+    <string name="models_streaming_mode_accuracy">Native streaming — Accuracy priority (1,120 ms)</string>
+    <string name="models_streaming_mode_saved">Streaming mode saved</string>
+    <string name="models_streaming_mode_unsupported">The currently selected model does not support cache-aware native streaming and will use the existing transcription implementation.</string>
     <string name="models_threads_section">CPU threads</string>
     <string name="models_threads_desc">Threads used for transcription. “Automatic” picks a value based on this device\'s CPU. If transcription is slow, try different values; more threads is not always faster.</string>
     <string name="models_threads_auto">Automatic</string>

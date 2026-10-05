@@ -108,6 +108,9 @@ public class ModelsActivity extends AppCompatActivity {
     private Spinner languageSpinner;
     private Spinner chineseOutputSpinner;
     private com.google.android.material.materialswitch.MaterialSwitch strictLanguageSwitch;
+    private Spinner streamingModeSpinner;
+    private TextView streamingModeUnsupportedText;
+    private boolean isUpdatingStreamingSpinner = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -123,6 +126,8 @@ public class ModelsActivity extends AppCompatActivity {
         languageSpinner = findViewById(R.id.spinner_language);
         chineseOutputSpinner = findViewById(R.id.spinner_chinese_output);
         strictLanguageSwitch = findViewById(R.id.switch_strict_language);
+        streamingModeSpinner = findViewById(R.id.spinner_streaming_mode);
+        streamingModeUnsupportedText = findViewById(R.id.txt_streaming_mode_unsupported);
 
         importButton.setOnClickListener(v -> {
             Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
@@ -136,6 +141,7 @@ public class ModelsActivity extends AppCompatActivity {
         setupStrictLanguageSwitch();
         setupLanguageSpinner();
         setupChineseOutputSpinner();
+        setupStreamingModeSpinner();
         setupThreadsSpinner();
 
         com.google.android.material.materialswitch.MaterialSwitch translateSwitch =
@@ -236,7 +242,10 @@ public class ModelsActivity extends AppCompatActivity {
             target = remembered;
         }
         boolean modelChanged = !target.equals(storedCurrent);
-        if (modelChanged) writeConfig("active_model", target);
+        if (modelChanged) {
+            writeConfig("active_model", target);
+            StreamingModePrefs.syncActiveModelStreamingMode(this, target);
+        }
         LanguageModelPrefs.write(this, language, target);
         return modelChanged;
     }
@@ -296,6 +305,58 @@ public class ModelsActivity extends AppCompatActivity {
         }
         String stored = readConfig("chinese_output");
         return stored.isEmpty() ? DEFAULT_CHINESE_OUTPUT : stored;
+    }
+
+    // --- Streaming mode -----------------------------------------------------
+
+    private void setupStreamingModeSpinner() {
+        List<String> labels = new ArrayList<>(StreamingModePrefs.MODE_LABELS.length);
+        for (int labelRes : StreamingModePrefs.MODE_LABELS) {
+            labels.add(getString(labelRes));
+        }
+
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                this, android.R.layout.simple_spinner_item, labels);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        streamingModeSpinner.setAdapter(adapter);
+
+        streamingModeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                if (isUpdatingStreamingSpinner) return;
+                String selectedMode = StreamingModePrefs.MODES[position];
+                String active = readConfig("active_model");
+                String currentMode = StreamingModePrefs.getModeForModel(ModelsActivity.this, active);
+                if (selectedMode.equals(currentMode)) return;
+
+                StreamingModePrefs.setModeForModel(ModelsActivity.this, active, selectedMode);
+                StreamingModePrefs.setActiveMode(ModelsActivity.this, selectedMode);
+                snackbar(getString(R.string.models_streaming_mode_saved));
+                statusText.setText(getString(R.string.models_loading));
+                reloadModelNative(ModelsActivity.this);
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+            }
+        });
+    }
+
+    private void updateStreamingModeUi(String active) {
+        boolean capable = StreamingModePrefs.isStreamingCapableModel(this, active);
+        isUpdatingStreamingSpinner = true;
+        if (capable) {
+            streamingModeSpinner.setEnabled(true);
+            streamingModeUnsupportedText.setVisibility(View.GONE);
+            String mode = StreamingModePrefs.getModeForModel(this, active);
+            int idx = Arrays.asList(StreamingModePrefs.MODES).indexOf(mode);
+            streamingModeSpinner.setSelection(Math.max(0, idx), false);
+        } else {
+            streamingModeSpinner.setEnabled(false);
+            streamingModeUnsupportedText.setVisibility(View.VISIBLE);
+            streamingModeSpinner.setSelection(0, false);
+        }
+        isUpdatingStreamingSpinner = false;
     }
 
     // --- Inference threads --------------------------------------------------
@@ -411,6 +472,8 @@ public class ModelsActivity extends AppCompatActivity {
         } else if (!hasBuiltin && active.isEmpty()) {
             statusText.setText(getString(R.string.models_none_selected));
         }
+
+        updateStreamingModeUi(active);
     }
 
     /** Adds one selectable row; {@code fileName} is null for the built-in model. */
@@ -442,6 +505,7 @@ public class ModelsActivity extends AppCompatActivity {
         }
         if (!writeConfig("active_model", selected)) return;
         LanguageModelPrefs.write(this, readConfig("model_language"), selected);
+        StreamingModePrefs.syncActiveModelStreamingMode(this, selected);
         refreshList();
         statusText.setText(getString(R.string.models_loading));
         reloadModelNative(this);
@@ -615,8 +679,13 @@ public class ModelsActivity extends AppCompatActivity {
 
     // Called from Rust with load progress ("Loading model...", "Ready", "Error: ...").
     public void onStatusUpdate(String status) {
-        runOnUiThread(() -> statusText.setText(status));
+        runOnUiThread(() -> {
+            statusText.setText(status);
+            updateStreamingModeUi(readConfig("active_model"));
+        });
     }
 
     private native void reloadModelNative(ModelsActivity activity);
+    public static native boolean isStreamingCapableNative(String modelPath);
+    public static native boolean isActiveModelStreamingCapableNative();
 }

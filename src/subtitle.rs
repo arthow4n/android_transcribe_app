@@ -96,7 +96,21 @@ struct LiveSubtitleState {
     rtf_milli: Arc<AtomicU32>,
 }
 
-static LIVE_STATE: Lazy<Mutex<Option<LiveSubtitleState>>> = Lazy::new(|| Mutex::new(None));
+enum SubtitleModeState {
+    Legacy(LiveSubtitleState),
+    Native(NativeSubtitleState),
+}
+
+struct NativeSubtitleState {
+    worker_tx: crossbeam_channel::Sender<NativeSubtitleMsg>,
+}
+
+enum NativeSubtitleMsg {
+    Samples(Vec<f32>),
+    Finish,
+}
+
+static LIVE_STATE: Lazy<Mutex<Option<SubtitleModeState>>> = Lazy::new(|| Mutex::new(None));
 
 #[no_mangle]
 pub unsafe extern "system" fn Java_dev_notune_transcribe_LiveSubtitleService_initNative(
@@ -116,13 +130,141 @@ pub unsafe extern "system" fn Java_dev_notune_transcribe_LiveSubtitleService_ini
         Err(_) => return,
     };
 
+    let is_native = engine::get_engine()
+        .map(|eng| eng.lock().unwrap_or_else(|e| e.into_inner()).is_native_streaming_enabled())
+        .unwrap_or(false);
+
+    if is_native {
+        let (tx, rx) = crossbeam_channel::unbounded::<NativeSubtitleMsg>();
+        *LIVE_STATE.lock().unwrap() = Some(SubtitleModeState::Native(NativeSubtitleState {
+            worker_tx: tx,
+        }));
+
+        std::thread::spawn(move || {
+            let mut env = match vm.attach_current_thread() {
+                Ok(e) => e,
+                Err(e) => {
+                    log::error!("Subtitle worker failed to attach: {}", e);
+                    return;
+                }
+            };
+            let service_obj = service_ref.as_obj();
+            let deliver = |env: &mut jni::JNIEnv, text: &str, is_final: bool| {
+                if let Ok(jtxt) = env.new_string(text) {
+                    let _ = env.call_method(
+                        service_obj,
+                        "onSubtitleText",
+                        "(Ljava/lang/String;Z)V",
+                        &[(&jtxt).into(), is_final.into()],
+                    );
+                }
+            };
+
+            if let Err(e) = engine::ensure_loaded_from_thread(&vm, &service_ref) {
+                log::error!("Failed to load engine for native subtitle: {}", e);
+                deliver(&mut env, &format!("Error loading model: {}", e), true);
+                return;
+            }
+
+            let engine_arc = match engine::get_engine() {
+                Some(eng) => eng,
+                None => {
+                    deliver(&mut env, "Error: speech model not loaded", true);
+                    return;
+                }
+            };
+
+            let mut engine_guard = engine_arc.lock().unwrap_or_else(|e| e.into_inner());
+            let post_processor = engine_guard.post_processor();
+            let nominal_chunk = engine_guard
+                .streaming_mode()
+                .nominal_chunk_samples()
+                .unwrap_or(1280);
+            let mut stream = match engine_guard.begin_streaming() {
+                Ok(s) => s,
+                Err(e) => {
+                    log::error!("Failed to begin native streaming for subtitle: {}", e);
+                    deliver(&mut env, &format!("Error: {}", e), true);
+                    return;
+                }
+            };
+
+            let mut committed_len = 0usize;
+            let mut last_tentative = String::new();
+            let mut audio_accum = Vec::with_capacity(nominal_chunk * 2);
+
+            while let Ok(msg) = rx.recv() {
+                match msg {
+                    NativeSubtitleMsg::Samples(samples) => {
+                        audio_accum.extend_from_slice(&samples);
+                        while let Ok(more) = rx.try_recv() {
+                            match more {
+                                NativeSubtitleMsg::Samples(s) => audio_accum.extend_from_slice(&s),
+                                NativeSubtitleMsg::Finish => {
+                                    audio_accum.clear();
+                                    break;
+                                }
+                            }
+                        }
+
+                        if audio_accum.len() >= nominal_chunk {
+                            if let Err(e) = stream.feed(&audio_accum) {
+                                log::error!("Stream feed error in subtitle: {}", e);
+                            }
+                            audio_accum.clear();
+
+                            let snapshot = stream.text();
+                            if snapshot.committed.len() > committed_len {
+                                let new_committed = &snapshot.committed[committed_len..];
+                                committed_len = snapshot.committed.len();
+                                let clean = post_processor
+                                    .lock()
+                                    .unwrap_or_else(|e| e.into_inner())
+                                    .convert_text(new_committed);
+                                if !clean.trim().is_empty() {
+                                    deliver(&mut env, clean.trim(), true);
+                                }
+                            }
+                            let clean_tent = post_processor
+                                .lock()
+                                .unwrap_or_else(|e| e.into_inner())
+                                .convert_text(&snapshot.tentative);
+                            let clean_trimmed = clean_tent.trim().to_string();
+                            if clean_trimmed != last_tentative {
+                                deliver(&mut env, &clean_trimmed, false);
+                                last_tentative = clean_trimmed;
+                            }
+                        }
+                    }
+                    NativeSubtitleMsg::Finish => break,
+                }
+            }
+
+            if !audio_accum.is_empty() {
+                let _ = stream.feed(&audio_accum);
+            }
+            let _ = stream.finalize();
+            let snapshot = stream.text();
+            let full_display = snapshot.display();
+            drop(stream);
+            if committed_len < full_display.len() {
+                let remaining = &full_display[committed_len..];
+                let clean = engine_guard.convert_text(remaining);
+                if !clean.trim().is_empty() {
+                    deliver(&mut env, clean.trim(), true);
+                }
+            }
+        });
+        return;
+    }
+
     let (tx, rx) = crossbeam_channel::unbounded::<Job>();
     let worker_busy = Arc::new(AtomicBool::new(false));
     let total_pushed = Arc::new(AtomicU64::new(0));
     let pending_finals = Arc::new(AtomicUsize::new(0));
     let rtf_milli = Arc::new(AtomicU32::new(0));
 
-    *LIVE_STATE.lock().unwrap() = Some(LiveSubtitleState {
+    *LIVE_STATE.lock().unwrap() = Some(SubtitleModeState::Legacy(LiveSubtitleState {
         segment: Vec::new(),
         preroll: Vec::new(),
         has_speech: false,
@@ -133,7 +275,7 @@ pub unsafe extern "system" fn Java_dev_notune_transcribe_LiveSubtitleService_ini
         total_pushed: total_pushed.clone(),
         pending_finals: pending_finals.clone(),
         rtf_milli: rtf_milli.clone(),
-    });
+    }));
 
     std::thread::spawn(move || {
         let mut env = match vm.attach_current_thread() {
@@ -256,8 +398,10 @@ pub unsafe extern "system" fn Java_dev_notune_transcribe_LiveSubtitleService_cle
     _env: JNIEnv,
     _class: JClass,
 ) {
-    // Dropping the state drops the sender; the worker exits once the queue drains.
-    *LIVE_STATE.lock().unwrap() = None;
+    let old = LIVE_STATE.lock().unwrap().take();
+    if let Some(SubtitleModeState::Native(native)) = old {
+        let _ = native.worker_tx.send(NativeSubtitleMsg::Finish);
+    }
 }
 
 #[no_mangle]
@@ -280,6 +424,14 @@ pub unsafe extern "system" fn Java_dev_notune_transcribe_LiveSubtitleService_pus
     let state = match guard.as_mut() {
         Some(s) => s,
         None => return,
+    };
+
+    let state = match state {
+        SubtitleModeState::Native(native) => {
+            let _ = native.worker_tx.send(NativeSubtitleMsg::Samples(input));
+            return;
+        }
+        SubtitleModeState::Legacy(s) => s,
     };
 
     let stream_pos = state.total_pushed.fetch_add(len as u64, Ordering::SeqCst) + len as u64;

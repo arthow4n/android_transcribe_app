@@ -30,6 +30,7 @@ pub struct StreamingControl {
     overflowed: AtomicBool,
     queued_samples: AtomicUsize,
     total_samples: AtomicUsize,
+    nominal_chunk: usize,
 }
 
 impl StreamingControl {
@@ -40,7 +41,8 @@ impl StreamingControl {
             return;
         }
         self.total_samples.fetch_add(samples.len(), Ordering::Relaxed);
-        for chunk in samples.chunks(AUDIO_CHUNK_SAMPLES) {
+        let chunk_size = self.nominal_chunk.max(640);
+        for chunk in samples.chunks(chunk_size) {
             if !self.reserve(chunk.len()) {
                 self.overflowed.store(true, Ordering::Release);
                 return;
@@ -292,7 +294,14 @@ pub fn start(
     engine: Arc<std::sync::Mutex<engine::Engine>>,
     jvm: Arc<JavaVM>,
     target: GlobalRef,
-) -> Arc<StreamingControl> {
+) -> Result<Arc<StreamingControl>, String> {
+    let nominal_chunk = {
+        let guard = engine.lock().unwrap_or_else(|e| e.into_inner());
+        guard
+            .streaming_mode()
+            .nominal_chunk_samples()
+            .unwrap_or(AUDIO_CHUNK_SAMPLES)
+    };
     let (sender, receiver) = crossbeam_channel::unbounded();
     let control = Arc::new(StreamingControl {
         sender,
@@ -302,6 +311,7 @@ pub fn start(
         overflowed: AtomicBool::new(false),
         queued_samples: AtomicUsize::new(0),
         total_samples: AtomicUsize::new(0),
+        nominal_chunk,
     });
     let worker_control = control.clone();
     std::thread::spawn(move || {
@@ -311,6 +321,7 @@ pub fn start(
             &worker_control,
             &jvm,
             &target,
+            nominal_chunk,
         );
         match result {
             Ok(Some(text)) => {
@@ -321,7 +332,7 @@ pub fn start(
             Err(error) => notify_status(&jvm, &target, &format!("Error: {}", error)),
         }
     });
-    control
+    Ok(control)
 }
 
 fn run_worker(
@@ -330,12 +341,15 @@ fn run_worker(
     control: &StreamingControl,
     jvm: &JavaVM,
     target: &GlobalRef,
+    nominal_chunk: usize,
 ) -> Result<Option<String>, String> {
+    let post_processor = engine.post_processor();
     let mut stream = engine.begin_streaming()?;
     let mut last_stats = Instant::now();
     let mut last_stats_log = Instant::now();
     let mut stats = ProcessingStats::default();
     let mut finalizing = false;
+    let coalesce_limit = (nominal_chunk * 2).max(AUDIO_CHUNK_SAMPLES * 2);
     loop {
         if control.cancel_requested.load(Ordering::Acquire) {
             stream.reset();
@@ -364,10 +378,9 @@ fn run_worker(
         match next {
             Ok(mut samples) => {
                 control.consumed(samples.len());
-                // Coalesce additional ready chunks from the channel up to ~200ms
-                // (3200 samples) to dramatically reduce per-chunk mel spectrogram
-                // recomputation overhead in transcribe-cpp when processing a backlog.
-                while samples.len() < AUDIO_CHUNK_SAMPLES * 2 {
+                // Coalesce additional ready chunks from the channel up to ~2x nominal chunk
+                // to reduce per-chunk mel spectrogram recomputation overhead when processing backlog.
+                while samples.len() < coalesce_limit {
                     match receiver.try_recv() {
                         Ok(more) => {
                             control.consumed(more.len());
@@ -389,9 +402,9 @@ fn run_worker(
                 // Keep JNI traffic low enough for the audio thread and main
                 // looper while still making the keyboard feel live.
                 let stats_cadence = if finalizing {
-                    Duration::from_millis(100)
+                    Duration::from_millis(50)
                 } else {
-                    Duration::from_millis(250)
+                    Duration::from_millis(150)
                 };
                 if last_stats.elapsed() >= stats_cadence {
                     let snapshot = stream.text();
@@ -399,16 +412,21 @@ fn run_worker(
                     let total_ms =
                         (control.total_samples() as f64 / (SAMPLE_RATE / 1000.0)).round() as i64;
                     notify_stats(
-                        &jvm,
-                        &target,
+                        jvm,
+                        target,
                         stats.audio_ms(),
                         total_ms,
                         count_words(&snapshot.full),
                         current_speed,
                         average_speed,
                     );
-                    if !snapshot.full.trim().is_empty() {
-                        notify_partial_text(&jvm, &target, &snapshot.full);
+                    let display_text = snapshot.display();
+                    let clean = post_processor
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner())
+                        .convert_text(&display_text);
+                    if !clean.trim().is_empty() {
+                        notify_partial_text(jvm, target, &clean);
                     }
                     if last_stats_log.elapsed() >= Duration::from_secs(1) {
                         log::debug!(
@@ -439,8 +457,8 @@ fn run_worker(
                     let total_ms =
                         (control.total_samples() as f64 / (SAMPLE_RATE / 1000.0)).round() as i64;
                     notify_stats(
-                        &jvm,
-                        &target,
+                        jvm,
+                        target,
                         total_ms.max(stats.audio_ms()),
                         total_ms,
                         count_words(&snapshot.full),
@@ -454,9 +472,10 @@ fn run_worker(
                         current_speed,
                         average_speed
                     );
-                    let text = snapshot.full;
+                    let display_text = snapshot.display();
                     drop(stream);
-                    return Ok(Some(engine.convert_text(&text)));
+                    let text = engine.convert_text(&display_text);
+                    return Ok(Some(text));
                 }
                 finalizing = false;
             }
@@ -484,6 +503,7 @@ mod tests {
                 overflowed: AtomicBool::new(false),
                 queued_samples: AtomicUsize::new(0),
                 total_samples: AtomicUsize::new(0),
+                nominal_chunk: AUDIO_CHUNK_SAMPLES,
             }),
             receiver,
         )

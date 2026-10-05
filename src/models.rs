@@ -28,3 +28,39 @@ pub unsafe extern "system" fn Java_dev_notune_transcribe_ModelsActivity_reloadMo
         let _ = engine::ensure_loaded_from_thread(&vm, &activity_ref);
     });
 }
+
+/// Inspects a model file directly to determine whether it supports Nemotron native streaming.
+#[no_mangle]
+pub unsafe extern "system" fn Java_dev_notune_transcribe_ModelsActivity_isStreamingCapableNative(
+    mut env: JNIEnv,
+    _class: JClass,
+    model_path: jni::objects::JString,
+) -> jni::sys::jboolean {
+    let path_str: String = match env.get_string(&model_path) {
+        Ok(s) => s.into(),
+        Err(_) => return 0,
+    };
+    if path_str.is_empty() {
+        return 0;
+    }
+    if engine::check_model_is_nemotron(std::path::Path::new(&path_str)) {
+        1
+    } else {
+        0
+    }
+}
+
+/// Checks whether the currently loaded engine supports Nemotron native streaming.
+#[no_mangle]
+pub unsafe extern "system" fn Java_dev_notune_transcribe_ModelsActivity_isActiveModelStreamingCapableNative(
+    _env: JNIEnv,
+    _class: JClass,
+) -> jni::sys::jboolean {
+    if let Some(eng) = engine::get_engine() {
+        let guard = eng.lock().unwrap_or_else(|e| e.into_inner());
+        if guard.is_nemotron_streaming() {
+            return 1;
+        }
+    }
+    0
+}
