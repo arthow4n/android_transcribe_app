@@ -1519,9 +1519,14 @@ public class RustInputMethodService extends InputMethodService {
         long nowMs = android.os.SystemClock.elapsedRealtime();
         boolean currentRateFresh = lastStreamingStatsAtMs > 0L
                 && nowMs - lastStreamingStatsAtMs <= 2_000L;
+        long totalMs = totalAudioMs > 0L
+                ? totalAudioMs
+                : (isRecording ? elapsedMs : lastRecordingDurationMs);
+        long delayMs = Math.max(0L, totalMs - processedAudioMs);
+
         statsView.setText(getString(R.string.ime_stats_format, formatElapsed(elapsedMs),
                 processedWords, formatSpeed(currentRateFresh ? currentProcessingSpeed : -1f),
-                formatSpeed(averageProcessingSpeed)));
+                formatSpeed(averageProcessingSpeed), formatDelay(delayMs)));
     }
 
     static int calculateCatchUpPercent(long processedAudioMs, long totalAudioMs,
@@ -1577,6 +1582,13 @@ public class RustInputMethodService extends InputMethodService {
         if (speed < 0f || Float.isNaN(speed) || Float.isInfinite(speed)) return "—";
         if (speed < 0.1f) return "<0.1×";
         return String.format(java.util.Locale.ROOT, "%.1f×", speed);
+    }
+
+    static String formatDelay(long delayMs) {
+        if (delayMs <= 0L) {
+            return "0.0s";
+        }
+        return String.format(java.util.Locale.ROOT, "%.1fs", delayMs / 1000.0f);
     }
 
     private boolean isPauseAudioEnabled() {

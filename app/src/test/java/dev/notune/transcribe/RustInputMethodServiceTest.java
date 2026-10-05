@@ -95,4 +95,13 @@ public class RustInputMethodServiceTest {
         // Fallback caps at 95% until complete
         assertEquals(95, RustInputMethodService.calculateCatchUpPercent(0, 10000, 1000, 20000, 1.0f));
     }
+
+    @Test
+    public void testFormatDelay() {
+        assertEquals("0.0s", RustInputMethodService.formatDelay(0));
+        assertEquals("0.0s", RustInputMethodService.formatDelay(-500));
+        assertEquals("0.5s", RustInputMethodService.formatDelay(500));
+        assertEquals("1.2s", RustInputMethodService.formatDelay(1234));
+        assertEquals("15.0s", RustInputMethodService.formatDelay(15000));
+    }
 }
