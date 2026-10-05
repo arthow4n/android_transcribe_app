@@ -104,7 +104,7 @@ pub fn init_session(env: JNIEnv, target: JObject) -> VoiceSessionState {
 /// Java-side `onAutoStop()` callback, which is expected to stop the recording
 /// the same way a manual tap would.
 pub fn start_recording(env: JNIEnv, state: &mut VoiceSessionState, auto_stop: bool) {
-    start_recording_mode(env, state, auto_stop, false);
+    start_recording_mode(env, state, auto_stop, true);
 }
 
 pub fn start_recording_mode(
@@ -143,7 +143,7 @@ pub fn start_recording_mode(
         None => false,
     };
 
-    let use_streaming = is_native_streaming || streaming_requested;
+    let use_streaming = is_native_streaming && streaming_requested;
 
     let streaming_control = if use_streaming {
         match engine::get_engine() {

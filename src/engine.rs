@@ -227,56 +227,23 @@ impl Engine {
             StreamingMode::Legacy
         };
 
-        let (streaming_supported, streaming_ext) = if capabilities.supports_streaming {
-            if is_nemotron_streaming {
-                if effective_streaming_mode.is_native() {
-                    let right_att = effective_streaming_mode.right_attention();
-                    (
-                        true,
-                        Some(transcribe_cpp::StreamExtension::ParakeetStream(
-                            transcribe_cpp::ParakeetStreamOptions {
-                                att_context_right: right_att,
-                            },
-                        )),
-                    )
-                } else {
-                    // Legacy mode explicitly requested for Nemotron: do not configure streaming extension
-                    (false, None)
-                }
-            } else if model.accepts_ext(
-                transcribe_cpp::ExtSlot::Stream,
-                transcribe_cpp::sys::TRANSCRIBE_EXT_KIND_PARAKEET_BUFFERED_STREAM,
-            ) {
+        let (streaming_supported, streaming_ext) = if capabilities.supports_streaming && is_nemotron_streaming {
+            if effective_streaming_mode.is_native() {
+                let right_att = effective_streaming_mode.right_attention();
                 (
                     true,
-                    Some(transcribe_cpp::StreamExtension::ParakeetBuffered(
-                        transcribe_cpp::ParakeetBufferedStreamOptions::default(),
-                    )),
-                )
-            } else if model.accepts_ext(
-                transcribe_cpp::ExtSlot::Stream,
-                transcribe_cpp::sys::TRANSCRIBE_EXT_KIND_MOONSHINE_STREAMING_STREAM,
-            ) {
-                (
-                    true,
-                    Some(transcribe_cpp::StreamExtension::MoonshineStreaming(
-                        transcribe_cpp::MoonshineStreamingOptions::default(),
-                    )),
-                )
-            } else if model.accepts_ext(
-                transcribe_cpp::ExtSlot::Stream,
-                transcribe_cpp::sys::TRANSCRIBE_EXT_KIND_VOXTRAL_REALTIME_STREAM,
-            ) {
-                (
-                    true,
-                    Some(transcribe_cpp::StreamExtension::VoxtralRealtime(
-                        transcribe_cpp::VoxtralRealtimeStreamOptions::default(),
+                    Some(transcribe_cpp::StreamExtension::ParakeetStream(
+                        transcribe_cpp::ParakeetStreamOptions {
+                            att_context_right: right_att,
+                        },
                     )),
                 )
             } else {
+                // Legacy mode explicitly requested for Nemotron: do not configure streaming extension
                 (false, None)
             }
         } else {
+            // Non-Nemotron models strictly default to non-streaming / legacy mode
             (false, None)
         };
 
@@ -339,7 +306,7 @@ impl Engine {
     /// Begin the model-specific streaming path. The returned stream must remain
     /// on the same worker that owns this Engine borrow.
     pub fn begin_streaming(&mut self) -> Result<transcribe_cpp::Stream<'_>, String> {
-        if !self.streaming_supported {
+        if !self.streaming_supported || !self.is_native_streaming_enabled() {
             return Err("this model does not support native streaming".into());
         }
         let stream = transcribe_cpp::StreamOptions {

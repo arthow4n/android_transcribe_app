@@ -153,6 +153,7 @@ public class ModelsActivity extends AppCompatActivity {
             reloadModelNative(this);
         });
 
+        StreamingModePrefs.syncActiveModelStreamingMode(this, readConfig("active_model"));
         refreshList();
     }
 
@@ -358,6 +359,7 @@ public class ModelsActivity extends AppCompatActivity {
             streamingModeSpinner.setEnabled(false);
             streamingModeUnsupportedText.setVisibility(View.VISIBLE);
             streamingModeSpinner.setSelection(0, false);
+            StreamingModePrefs.syncActiveModelStreamingMode(this, active);
         }
         isUpdatingStreamingSpinner = false;
     }
@@ -448,6 +450,7 @@ public class ModelsActivity extends AppCompatActivity {
         // If the active model's file has disappeared, clear selection.
         if (!active.isEmpty() && !names.contains(active)) {
             writeConfig("active_model", "");
+            StreamingModePrefs.syncActiveModelStreamingMode(this, "");
             LanguageModelPrefs.write(this, readConfig("model_language"), "");
             active = "";
         }
@@ -525,6 +528,7 @@ public class ModelsActivity extends AppCompatActivity {
                             selectModel(null);
                         } else {
                             writeConfig("active_model", "");
+                            StreamingModePrefs.syncActiveModelStreamingMode(this, "");
                             LanguageModelPrefs.write(this, readConfig("model_language"), "");
                             refreshList();
                             reloadModelNative(this);

@@ -295,13 +295,19 @@ pub fn start(
     jvm: Arc<JavaVM>,
     target: GlobalRef,
 ) -> Result<Arc<StreamingControl>, String> {
-    let nominal_chunk = {
+    let (nominal_chunk, is_supported) = {
         let guard = engine.lock().unwrap_or_else(|e| e.into_inner());
-        guard
-            .streaming_mode()
-            .nominal_chunk_samples()
-            .unwrap_or(AUDIO_CHUNK_SAMPLES)
+        (
+            guard
+                .streaming_mode()
+                .nominal_chunk_samples()
+                .unwrap_or(AUDIO_CHUNK_SAMPLES),
+            guard.is_native_streaming_enabled(),
+        )
     };
+    if !is_supported {
+        return Err("this model does not support native streaming".into());
+    }
     let (sender, receiver) = crossbeam_channel::unbounded();
     let control = Arc::new(StreamingControl {
         sender,

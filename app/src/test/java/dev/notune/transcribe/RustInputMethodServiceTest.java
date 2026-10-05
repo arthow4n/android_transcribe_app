@@ -105,4 +105,15 @@ public class RustInputMethodServiceTest {
         assertEquals("00:15", RustInputMethodService.formatDelay(15000));
         assertEquals("01:05", RustInputMethodService.formatDelay(65000));
     }
+
+    @Test
+    public void testNonStreamingModelsAreNotCapable() {
+        assertFalse(StreamingModePrefs.isStreamingCapableModel(null, null));
+        assertFalse(StreamingModePrefs.isStreamingCapableModel(null, ""));
+        assertFalse(StreamingModePrefs.isStreamingCapableModel(null, "SenseVoiceSmall-Q8_0.gguf"));
+        assertFalse(StreamingModePrefs.isStreamingCapableModel(null, "whisper-small-Q8_0.gguf"));
+        assertFalse(StreamingModePrefs.isStreamingCapableModel(null, "whisper-base-Q8_0.gguf"));
+        assertFalse(StreamingModePrefs.isStreamingCapableModel(null, "parakeet-tdt-0.6b-v3-Q4_K_M.gguf"));
+        assertFalse(StreamingModePrefs.isStreamingCapableModel(null, "parakeet-tdt_ctc-110m-Q8_0.gguf"));
+    }
 }

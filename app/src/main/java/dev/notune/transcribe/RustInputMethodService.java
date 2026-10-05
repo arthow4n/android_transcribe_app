@@ -168,6 +168,7 @@ public class RustInputMethodService extends InputMethodService {
         super.onCreate();
         mainHandler = new Handler(Looper.getMainLooper());
         Log.d(TAG, "Service onCreate");
+        StreamingModePrefs.syncActiveModelStreamingMode(this, readConfig("active_model"));
         try {
             initNative(this);
         } catch (Throwable t) {
@@ -835,6 +836,9 @@ public class RustInputMethodService extends InputMethodService {
         if (modelChanged && !writeConfig("active_model", target)) return null;
         if (!writeConfig("model_language", selectedLanguage)) return null;
         LanguageModelPrefs.write(this, selectedLanguage, target);
+        if (modelChanged) {
+            StreamingModePrefs.syncActiveModelStreamingMode(this, target);
+        }
         return modelChanged;
     }
 
@@ -1284,6 +1288,7 @@ public class RustInputMethodService extends InputMethodService {
                     refreshModelSpinner();
                     return;
                 }
+                StreamingModePrefs.syncActiveModelStreamingMode(RustInputMethodService.this, selected == null ? "" : selected);
                 LanguageModelPrefs.write(RustInputMethodService.this,
                         readConfig("model_language"),
                         selected == null ? "" : selected);
@@ -1331,6 +1336,7 @@ public class RustInputMethodService extends InputMethodService {
             if (selected < 0 && hasBuiltin) {
                 selected = 0;
                 writeConfig("active_model", "");
+                StreamingModePrefs.syncActiveModelStreamingMode(this, "");
             }
         } else if (hasBuiltin) {
             selected = 0;
@@ -1537,7 +1543,8 @@ public class RustInputMethodService extends InputMethodService {
                 formatSpeed(averageProcessingSpeed), formatDelay(delayMs));
 
         String activeModel = readConfig("active_model");
-        boolean isStreaming = StreamingModePrefs.isStreamingCapableModel(this, activeModel);
+        boolean isStreaming = isStreamingEnabled()
+                && StreamingModePrefs.isStreamingCapableModel(this, activeModel);
         String streamingMode = isStreaming ? StreamingModePrefs.getActiveMode(this) : StreamingModePrefs.MODE_LEGACY;
         String latencyLabel = isStreaming ? StreamingModePrefs.getNominalLatencyLabel(streamingMode) : null;
 
