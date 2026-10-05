@@ -98,10 +98,11 @@ public class RustInputMethodServiceTest {
 
     @Test
     public void testFormatDelay() {
-        assertEquals("0.0s", RustInputMethodService.formatDelay(0));
-        assertEquals("0.0s", RustInputMethodService.formatDelay(-500));
-        assertEquals("0.5s", RustInputMethodService.formatDelay(500));
-        assertEquals("1.2s", RustInputMethodService.formatDelay(1234));
-        assertEquals("15.0s", RustInputMethodService.formatDelay(15000));
+        assertEquals("00:00", RustInputMethodService.formatDelay(0));
+        assertEquals("00:00", RustInputMethodService.formatDelay(-500));
+        assertEquals("00:01", RustInputMethodService.formatDelay(500));
+        assertEquals("00:01", RustInputMethodService.formatDelay(1234));
+        assertEquals("00:15", RustInputMethodService.formatDelay(15000));
+        assertEquals("01:05", RustInputMethodService.formatDelay(65000));
     }
 }

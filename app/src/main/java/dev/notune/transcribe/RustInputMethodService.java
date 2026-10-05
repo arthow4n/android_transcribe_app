@@ -1585,10 +1585,7 @@ public class RustInputMethodService extends InputMethodService {
     }
 
     static String formatDelay(long delayMs) {
-        if (delayMs <= 0L) {
-            return "0.0s";
-        }
-        return String.format(java.util.Locale.ROOT, "%.1fs", delayMs / 1000.0f);
+        return formatElapsed(Math.max(0L, delayMs));
     }
 
     private boolean isPauseAudioEnabled() {
