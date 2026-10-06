@@ -68,6 +68,8 @@ public class RustInputMethodService extends InputMethodService {
     private TextView progressPercentView;
     private View backspaceButton;
     private View spaceButton;
+    private View spaceRightButton;
+    private View spaceLongPressTarget;
     private View enterButton;
     private TextView languageSwitchButton;
     private View modelButton;
@@ -219,6 +221,7 @@ public class RustInputMethodService extends InputMethodService {
             backspaceButton = view.findViewById(R.id.ime_backspace);
             selectAllButton = view.findViewById(R.id.ime_select_all);
             spaceButton = view.findViewById(R.id.ime_space);
+            spaceRightButton = view.findViewById(R.id.ime_space_right);
             enterButton = view.findViewById(R.id.ime_enter);
             languageSwitchButton = view.findViewById(R.id.ime_language_switch);
             modelButton = view.findViewById(R.id.ime_model_button);
@@ -358,7 +361,9 @@ public class RustInputMethodService extends InputMethodService {
                 @Override
                 public void run() {
                     spaceLongPressed = true;
-                    if (spaceButton != null) {
+                    if (spaceLongPressTarget != null) {
+                        spaceLongPressTarget.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
+                    } else if (spaceButton != null) {
                         spaceButton.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
                     }
                     switchLanguageOrKeyboard();
@@ -383,38 +388,8 @@ public class RustInputMethodService extends InputMethodService {
                 return false;
             });
 
-            spaceButton.setOnTouchListener((v, event) -> {
-                switch (event.getAction()) {
-                    case MotionEvent.ACTION_DOWN:
-                        spaceLongPressed = false;
-                        v.setPressed(true);
-                        mainHandler.postDelayed(spaceLongPressRunnable,
-                                android.view.ViewConfiguration.getLongPressTimeout());
-                        return true;
-                    case MotionEvent.ACTION_MOVE:
-                        if (!isPointInsideView(v, event.getX(), event.getY())) {
-                            mainHandler.removeCallbacks(spaceLongPressRunnable);
-                            v.setPressed(false);
-                        }
-                        return true;
-                    case MotionEvent.ACTION_UP:
-                        mainHandler.removeCallbacks(spaceLongPressRunnable);
-                        v.setPressed(false);
-                        if (!spaceLongPressed) {
-                            InputConnection ic = getCurrentInputConnection();
-                            if (ic != null) {
-                                ic.commitText(" ", 1);
-                            }
-                        }
-                        return true;
-                    case MotionEvent.ACTION_CANCEL:
-                        mainHandler.removeCallbacks(spaceLongPressRunnable);
-                        v.setPressed(false);
-                        spaceLongPressed = false;
-                        return true;
-                }
-                return false;
-            });
+            setupSpaceButton(spaceButton);
+            setupSpaceButton(spaceRightButton);
 
             enterButton.setOnClickListener(v -> {
                 InputConnection ic = getCurrentInputConnection();
@@ -1829,6 +1804,45 @@ public class RustInputMethodService extends InputMethodService {
         updateActionRowLayout(expanded);
     }
 
+    private void setupSpaceButton(View btn) {
+        if (btn == null) return;
+        btn.setOnTouchListener((v, event) -> {
+            switch (event.getAction()) {
+                case MotionEvent.ACTION_DOWN:
+                    spaceLongPressed = false;
+                    v.setPressed(true);
+                    spaceLongPressTarget = v;
+                    mainHandler.postDelayed(spaceLongPressRunnable,
+                            android.view.ViewConfiguration.getLongPressTimeout());
+                    return true;
+                case MotionEvent.ACTION_MOVE:
+                    if (!isPointInsideView(v, event.getX(), event.getY())) {
+                        mainHandler.removeCallbacks(spaceLongPressRunnable);
+                        v.setPressed(false);
+                    }
+                    return true;
+                case MotionEvent.ACTION_UP:
+                    mainHandler.removeCallbacks(spaceLongPressRunnable);
+                    v.setPressed(false);
+                    if (!spaceLongPressed) {
+                        InputConnection ic = getCurrentInputConnection();
+                        if (ic != null) {
+                            ic.commitText(" ", 1);
+                        }
+                    }
+                    spaceLongPressTarget = null;
+                    return true;
+                case MotionEvent.ACTION_CANCEL:
+                    mainHandler.removeCallbacks(spaceLongPressRunnable);
+                    v.setPressed(false);
+                    spaceLongPressed = false;
+                    spaceLongPressTarget = null;
+                    return true;
+            }
+            return false;
+        });
+    }
+
     private void updateActionRowLayout(boolean expanded) {
         if (actionRow == null || recordContainer == null || spaceButton == null
                 || backspaceButton == null || deleteWordButton == null || enterButton == null) {
@@ -1840,6 +1854,10 @@ public class RustInputMethodService extends InputMethodService {
         actionRow.removeAllViews();
         if (expanded) {
             // Expanded (QWERTY mode): Push-to-speak (132dp) on the left, Space (flex) in center
+            if (spaceRightButton != null) {
+                spaceRightButton.setVisibility(View.GONE);
+            }
+
             LinearLayout.LayoutParams recordLp = new LinearLayout.LayoutParams(dp(132), h44, 0.0f);
             recordLp.setMarginEnd(margin6);
             recordContainer.setLayoutParams(recordLp);
@@ -1850,33 +1868,60 @@ public class RustInputMethodService extends InputMethodService {
 
             actionRow.addView(recordContainer);
             actionRow.addView(spaceButton);
+
+            LinearLayout.LayoutParams backspaceLp = new LinearLayout.LayoutParams(h44, h44, 0.0f);
+            backspaceLp.setMarginEnd(margin6);
+            backspaceButton.setLayoutParams(backspaceLp);
+            actionRow.addView(backspaceButton);
+
+            LinearLayout.LayoutParams deleteWordLp = new LinearLayout.LayoutParams(h44, h44, 0.0f);
+            deleteWordLp.setMarginEnd(margin6);
+            deleteWordButton.setLayoutParams(deleteWordLp);
+            actionRow.addView(deleteWordButton);
+
+            LinearLayout.LayoutParams enterLp = new LinearLayout.LayoutParams(h44, h44, 0.0f);
+            enterButton.setLayoutParams(enterLp);
+            actionRow.addView(enterButton);
         } else {
-            // Collapsed (Voice mode): Space (44dp) on the left, Mic (flex) in center
+            // Collapsed (Voice mode):
+            // Delete character (44dp) on leftmost,
+            // Space (44dp) on the left of speak button,
+            // Push-to-speak (flex) in center,
+            // Duplicate Space (44dp) on the right of speak button,
+            // Delete word (44dp),
+            // Enter (44dp) on rightmost
+            LinearLayout.LayoutParams backspaceLp = new LinearLayout.LayoutParams(h44, h44, 0.0f);
+            backspaceLp.setMarginEnd(margin6);
+            backspaceButton.setLayoutParams(backspaceLp);
+            actionRow.addView(backspaceButton);
+
             LinearLayout.LayoutParams spaceLp = new LinearLayout.LayoutParams(h44, h44, 0.0f);
             spaceLp.setMarginEnd(margin6);
             spaceButton.setLayoutParams(spaceLp);
+            actionRow.addView(spaceButton);
 
             LinearLayout.LayoutParams recordLp = new LinearLayout.LayoutParams(0, h44, 1.0f);
             recordLp.setMarginEnd(margin6);
             recordContainer.setLayoutParams(recordLp);
-
-            actionRow.addView(spaceButton);
             actionRow.addView(recordContainer);
+
+            if (spaceRightButton != null) {
+                LinearLayout.LayoutParams spaceRightLp = new LinearLayout.LayoutParams(h44, h44, 0.0f);
+                spaceRightLp.setMarginEnd(margin6);
+                spaceRightButton.setLayoutParams(spaceRightLp);
+                spaceRightButton.setVisibility(View.VISIBLE);
+                actionRow.addView(spaceRightButton);
+            }
+
+            LinearLayout.LayoutParams deleteWordLp = new LinearLayout.LayoutParams(h44, h44, 0.0f);
+            deleteWordLp.setMarginEnd(margin6);
+            deleteWordButton.setLayoutParams(deleteWordLp);
+            actionRow.addView(deleteWordButton);
+
+            LinearLayout.LayoutParams enterLp = new LinearLayout.LayoutParams(h44, h44, 0.0f);
+            enterButton.setLayoutParams(enterLp);
+            actionRow.addView(enterButton);
         }
-
-        LinearLayout.LayoutParams backspaceLp = new LinearLayout.LayoutParams(h44, h44, 0.0f);
-        backspaceLp.setMarginEnd(margin6);
-        backspaceButton.setLayoutParams(backspaceLp);
-        actionRow.addView(backspaceButton);
-
-        LinearLayout.LayoutParams deleteWordLp = new LinearLayout.LayoutParams(h44, h44, 0.0f);
-        deleteWordLp.setMarginEnd(margin6);
-        deleteWordButton.setLayoutParams(deleteWordLp);
-        actionRow.addView(deleteWordButton);
-
-        LinearLayout.LayoutParams enterLp = new LinearLayout.LayoutParams(h44, h44, 0.0f);
-        enterButton.setLayoutParams(enterLp);
-        actionRow.addView(enterButton);
     }
 
     private int dp(float dpVal) {
